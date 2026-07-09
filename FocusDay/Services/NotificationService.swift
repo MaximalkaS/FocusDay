@@ -18,28 +18,37 @@ final class NotificationService {
         }
     }
 
-    func scheduleDailyNotifications(morningTime: Date, eveningTime: Date) async {
+    @discardableResult
+    func scheduleDailyNotifications(morningTime: Date, eveningTime: Date) async -> Bool {
         let isAuthorized = await requestAuthorization()
-        guard isAuthorized else { return }
+        guard isAuthorized else { return false }
 
         notificationCenter.removePendingNotificationRequests(
             withIdentifiers: [morningReminderIdentifier, eveningReminderIdentifier]
         )
 
-        scheduleNotification(
+        let didScheduleMorning = await scheduleNotification(
             identifier: morningReminderIdentifier,
             body: LocalizedStrings.morningNotificationBody,
             date: morningTime
         )
 
-        scheduleNotification(
+        let didScheduleEvening = await scheduleNotification(
             identifier: eveningReminderIdentifier,
             body: LocalizedStrings.eveningNotificationBody,
             date: eveningTime
         )
+
+        return didScheduleMorning && didScheduleEvening
     }
 
-    private func scheduleNotification(identifier: String, body: String, date: Date) {
+    func cancelDailyNotifications() {
+        notificationCenter.removePendingNotificationRequests(
+            withIdentifiers: [morningReminderIdentifier, eveningReminderIdentifier]
+        )
+    }
+
+    private func scheduleNotification(identifier: String, body: String, date: Date) async -> Bool {
         let content = UNMutableNotificationContent()
         content.title = LocalizedStrings.appName
         content.body = body
@@ -49,6 +58,10 @@ final class NotificationService {
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
 
-        notificationCenter.add(request)
+        return await withCheckedContinuation { continuation in
+            notificationCenter.add(request) { error in
+                continuation.resume(returning: error == nil)
+            }
+        }
     }
 }

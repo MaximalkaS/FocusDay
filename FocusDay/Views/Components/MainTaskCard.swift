@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct MainTaskCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let task: TaskItem?
     let backgroundImageName: String?
     @Binding var isActionMenuPresented: Bool
@@ -42,7 +44,7 @@ struct MainTaskCard: View {
 
                 if let task {
                     taskDetails(task)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .transition(AppMotion.appearTransition(reduceMotion))
                 }
 
                 PrimaryButton(
@@ -55,13 +57,14 @@ struct MainTaskCard: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
-        .animation(.easeInOut(duration: 0.24), value: task?.id)
+        .animation(AppMotion.smooth(reduceMotion), value: task?.id)
+        .zIndex(isActionMenuPresented ? 50 : 0)
     }
 
     private var header: some View {
         HStack(spacing: 14) {
             Image(systemName: "target")
-                .font(.title2.weight(.semibold))
+                .font(AppTypography.titleIcon)
                 .foregroundStyle(AppTheme.primaryBlue)
                 .frame(width: 50, height: 50)
                 .background(Color.white.opacity(hasBackgroundImage ? 0.78 : 0.9))
@@ -69,11 +72,11 @@ struct MainTaskCard: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(LocalizedStrings.mainTaskOfDay)
-                    .font(.title3.bold())
+                    .font(AppTypography.progressCardValue)
                     .foregroundStyle(primaryTextColor)
 
                 Text(task?.title ?? LocalizedStrings.noMainTask)
-                    .font(.subheadline.weight(task == nil ? .regular : .semibold))
+                    .font(task == nil ? AppTypography.screenSubtitle : AppTypography.sectionTitleSemibold)
                     .foregroundStyle(task == nil ? secondaryTextColor : primaryTextColor)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -98,9 +101,11 @@ struct MainTaskCard: View {
     private func taskDetails(_ task: TaskItem) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Button(action: onToggle) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(task.priority.displayColor)
+                CompletionCheckbox(
+                    isCompleted: task.isCompleted,
+                    color: task.priority.displayColor,
+                    size: 24
+                )
                     .frame(width: 44, height: 44)
                     .background(hasBackgroundImage ? Color.white.opacity(0.9) : Color.clear)
                     .clipShape(Circle())
@@ -113,7 +118,7 @@ struct MainTaskCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 if task.taskDescription.isEmpty == false {
                     Text(task.taskDescription)
-                        .font(.subheadline)
+                        .font(AppTypography.screenSubtitle)
                         .foregroundStyle(secondaryTextColor)
                         .lineLimit(2)
                 }
@@ -122,7 +127,7 @@ struct MainTaskCard: View {
                     Label(task.category.title, systemImage: "folder")
                     Label(LocalizedStrings.minutes(task.estimatedMinutes), systemImage: "clock")
                 }
-                .font(.caption.weight(.medium))
+                .font(AppTypography.taskMetadata)
                 .foregroundStyle(secondaryTextColor)
             }
             .padding(.top, 3)
@@ -158,6 +163,7 @@ struct MainTaskCard: View {
     private var secondaryTextColor: Color {
         Color(hex: "64748B")
     }
+
 }
 
 #if DEBUG

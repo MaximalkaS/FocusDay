@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TaskRowView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let task: TaskItem
     let isMain: Bool
     @Binding var isActionMenuPresented: Bool
@@ -25,7 +27,7 @@ struct TaskRowView: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text(task.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(AppTypography.taskTitle)
                         .foregroundStyle(AppTheme.text.opacity(task.isCompleted ? 0.55 : 1))
                         .strikethrough(task.isCompleted)
                         .multilineTextAlignment(.leading)
@@ -33,7 +35,7 @@ struct TaskRowView: View {
 
                     if task.taskDescription.isEmpty == false {
                         Text(task.taskDescription)
-                            .font(.caption)
+                            .font(AppTypography.compact)
                             .foregroundStyle(AppTheme.mutedText.opacity(task.isCompleted ? 0.62 : 1))
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -63,13 +65,17 @@ struct TaskRowView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(task.priority.displayColor.opacity(0.14), lineWidth: 1)
         }
+        .zIndex(isActionMenuPresented ? 50 : 0)
+        .animation(AppMotion.quick(reduceMotion), value: task.isCompleted)
     }
 
     private var completionButton: some View {
         Button(action: onToggle) {
-            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                .font(.title2)
-                .foregroundStyle(task.priority.displayColor)
+            CompletionCheckbox(
+                isCompleted: task.isCompleted,
+                color: task.priority.displayColor,
+                size: 26
+            )
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -96,7 +102,7 @@ struct TaskRowView: View {
                 }
             }
         }
-        .font(.caption)
+        .font(AppTypography.taskMetadata)
         .foregroundStyle(AppTheme.mutedText)
         .multilineTextAlignment(.leading)
         .fixedSize(horizontal: false, vertical: true)
@@ -133,7 +139,36 @@ extension TaskPriority {
     }
 }
 
+struct CompletionCheckbox: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let isCompleted: Bool
+    let color: Color
+    var size: CGFloat = 26
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isCompleted ? color : Color.clear)
+
+            Circle()
+                .stroke(color, lineWidth: isCompleted ? 0 : 2)
+
+            if isCompleted {
+                Image(systemName: "checkmark")
+                    .font(AppTypography.checkboxIcon(size: size))
+                    .foregroundStyle(Color.white)
+                    .transition(AppMotion.checkboxTransition(reduceMotion))
+            }
+        }
+        .frame(width: size, height: size)
+        .animation(AppMotion.gentleSpring(reduceMotion), value: isCompleted)
+    }
+}
+
 struct TaskActionMenuButton: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let task: TaskItem
     let isMain: Bool
     @Binding var isPresented: Bool
@@ -144,43 +179,39 @@ struct TaskActionMenuButton: View {
 
     var body: some View {
         Button {
-            isPresented = true
+            withAnimation(AppMotion.quick(reduceMotion)) {
+                isPresented.toggle()
+            }
         } label: {
             Image(systemName: "ellipsis")
-                .font(.headline)
+                .font(AppTypography.sectionTitle)
                 .foregroundStyle(AppTheme.primaryBlue)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(LocalizedStrings.taskActions)
-        .popover(
-            isPresented: $isPresented,
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .trailing
-        ) {
-            TaskActionMenu(
-                taskIsCompleted: task.isCompleted,
-                isMain: isMain,
-                onMakeMain: onMakeMain,
-                onRemoveMain: onRemoveMain,
-                onEdit: onEdit,
-                onDelete: onDelete
-            )
-            .presentationCompactAdaptation(.popover)
+        .anchorPreference(
+            key: TaskActionMenuAnchorPreferenceKey.self,
+            value: .bounds
+        ) { anchor in
+            [task.id: anchor]
         }
     }
 }
 
 struct TaskActionMenu: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let taskIsCompleted: Bool
     let isMain: Bool
+    let onDismiss: () -> Void
     let onMakeMain: () -> Void
     let onRemoveMain: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    var arrowOffsetY: CGFloat = 44
 
-    @Environment(\.dismiss) private var dismiss
     @State private var hasAppeared = false
 
     var body: some View {
@@ -221,12 +252,16 @@ struct TaskActionMenu: View {
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: Color(hex: "94A3B8").opacity(0.22), radius: 16, x: 0, y: 7)
+        .overlay(alignment: .topTrailing) {
+            TaskActionMenuTail()
+                .fill(Color.white)
+                .frame(width: 12, height: 22)
+                .offset(x: 10, y: max(20, arrowOffsetY - 11))
+        }
         .opacity(hasAppeared ? 1 : 0)
-        .scaleEffect(hasAppeared ? 1 : 0.96, anchor: .topTrailing)
-        .presentationBackground(Color.white)
-        .presentationCornerRadius(16)
+        .scaleEffect(hasAppeared || reduceMotion ? 1 : 0.96, anchor: .topTrailing)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.18)) {
+            withAnimation(AppMotion.quick(reduceMotion)) {
                 hasAppeared = true
             }
         }
@@ -239,14 +274,14 @@ struct TaskActionMenu: View {
         action: @escaping () -> Void
     ) -> some View {
         Button {
-            dismiss()
+            onDismiss()
             DispatchQueue.main.async {
                 action()
             }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(AppTypography.taskMenuItem)
                     .foregroundStyle(isDestructive ? AppTheme.highPriority : AppTheme.primaryBlue)
                     .frame(width: 40, height: 40)
                     .background(
@@ -257,7 +292,7 @@ struct TaskActionMenu: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppTypography.taskMenuItem)
                     .foregroundStyle(isDestructive ? AppTheme.highPriority : AppTheme.text)
 
                 Spacer(minLength: 0)
@@ -277,6 +312,38 @@ struct TaskActionMenu: View {
             .frame(height: 1)
             .padding(.horizontal, 8)
     }
+
+    static let preferredWidth: CGFloat = 264
+
+    static func preferredHeight(taskIsCompleted: Bool, isMain: Bool) -> CGFloat {
+        let actionCount = (isMain || taskIsCompleted == false) ? 3 : 2
+        let dividerCount = max(0, actionCount - 1)
+        return CGFloat(actionCount * 56 + dividerCount) + 20
+    }
+}
+
+struct TaskActionMenuAnchorPreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: Anchor<CGRect>] = [:]
+
+    static func reduce(
+        value: inout [UUID: Anchor<CGRect>],
+        nextValue: () -> [UUID: Anchor<CGRect>]
+    ) {
+        value.merge(nextValue()) { _, newValue in
+            newValue
+        }
+    }
+}
+
+private struct TaskActionMenuTail: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
 }
 
 struct TaskDeleteConfirmationDialog: View {
@@ -286,15 +353,15 @@ struct TaskDeleteConfirmationDialog: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "trash.circle.fill")
-                .font(.system(size: 34))
+                .font(AppTypography.emptyStateIcon)
                 .foregroundStyle(AppTheme.highPriority)
 
             Text(LocalizedStrings.deleteTaskTitle)
-                .font(.title3.bold())
+                .font(AppTypography.progressCardValue)
                 .foregroundStyle(AppTheme.text)
 
             Text(LocalizedStrings.deleteTaskMessage)
-                .font(.subheadline)
+                .font(AppTypography.screenSubtitle)
                 .foregroundStyle(AppTheme.placeholderText)
 
             HStack(spacing: 10) {
@@ -327,7 +394,7 @@ struct TaskDeleteConfirmationDialog: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(AppTypography.buttonText)
                 .foregroundStyle(isFilled ? Color.white : color)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -400,6 +467,7 @@ private extension TaskCategory {
     TaskActionMenu(
         taskIsCompleted: false,
         isMain: false,
+        onDismiss: {},
         onMakeMain: {},
         onRemoveMain: {},
         onEdit: {},
@@ -413,6 +481,7 @@ private extension TaskCategory {
     TaskActionMenu(
         taskIsCompleted: false,
         isMain: false,
+        onDismiss: {},
         onMakeMain: {},
         onRemoveMain: {},
         onEdit: {},

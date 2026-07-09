@@ -5,7 +5,7 @@ struct SectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.headline)
+            .font(AppTypography.sectionTitle)
             .foregroundStyle(AppTheme.text)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

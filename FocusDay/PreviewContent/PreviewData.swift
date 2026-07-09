@@ -29,6 +29,70 @@ enum PreviewData {
         progressContainer(completedCountsByDayOffset: [-4: 1, -3: 2, -2: 1, -1: 3, 0: 2])
     }
 
+    static func progressTodayOutlineOnlyContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-2: 1, -1: 2, 0: 1])
+    }
+
+    static func progressAfterDayChangeContainer() -> ModelContainer {
+        let container = makeContainer(shouldSeed: false)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+
+        let completedTask = TaskItem(
+            title: "Вчерашний завершённый фокус",
+            date: yesterday,
+            priority: .high,
+            isCompleted: true,
+            estimatedMinutes: 45,
+            category: .work
+        )
+        let unfinishedTask = TaskItem(
+            title: "Незавершённая задача переносится на сегодня",
+            date: yesterday,
+            priority: .medium,
+            estimatedMinutes: 30,
+            category: .personal
+        )
+
+        container.mainContext.insert(completedTask)
+        container.mainContext.insert(unfinishedTask)
+        container.mainContext.insert(
+            DailyState(
+                date: yesterday,
+                energyLevel: .medium,
+                mood: .calm,
+                mainTaskId: completedTask.id
+            )
+        )
+        savePreviewContext(container.mainContext)
+        return container
+    }
+
+    static func progressStreakWarningContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-3: 1, -2: 2, -1: 1])
+    }
+
+    static func progressStreakCompletedTodayContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-2: 1, -1: 1, 0: 1])
+    }
+
+    static func progressZeroStreakContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [:])
+    }
+
+    static func progressMissedDayResetContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-4: 1, -3: 2])
+    }
+
+    static func progressFilledWeekContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-6: 2, -5: 3, -4: 1, -3: 4, -2: 2, -1: 5, 0: 3])
+    }
+
+    static func progressNewBestResultContainer() -> ModelContainer {
+        progressContainer(completedCountsByDayOffset: [-6: 1, -5: 2, -4: 1, -3: 3, -2: 2, -1: 4, 0: 8])
+    }
+
     private static func makeContainer(shouldSeed: Bool) -> ModelContainer {
         let schema = Schema([
             TaskItem.self,
@@ -189,5 +253,13 @@ enum PreviewData {
         }
 
         return container
+    }
+
+    private static func savePreviewContext(_ context: ModelContext) {
+        do {
+            try context.save()
+        } catch {
+            assertionFailure("Unable to save preview context: \(error)")
+        }
     }
 }

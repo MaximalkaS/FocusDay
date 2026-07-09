@@ -22,12 +22,13 @@ struct PrimaryButton: View {
         Button(action: action) {
             Label {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTypography.primaryButton)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             } icon: {
                 if let systemImage {
                     Image(systemName: systemImage)
+                        .font(AppTypography.buttonText)
                 }
             }
             .frame(maxWidth: .infinity)

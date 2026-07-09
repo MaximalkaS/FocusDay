@@ -47,7 +47,7 @@ private struct AppTextEditorStyle: ViewModifier {
 
             if text.isEmpty {
                 Text(placeholder)
-                    .font(.body)
+                    .font(AppTypography.body)
                     .foregroundStyle(AppTheme.placeholderText)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 15)
@@ -83,13 +83,21 @@ extension View {
             )
         )
     }
+
+    func dismissKeyboardOnBackgroundTap(_ action: @escaping () -> Void) -> some View {
+        background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture(perform: action)
+        )
+    }
 }
 
 #if DEBUG
 #Preview {
     FocusDayCard {
         Text(LocalizedStrings.appName)
-            .font(.headline)
+            .font(AppTypography.sectionTitle)
     }
     .padding()
     .background(AppTheme.background)

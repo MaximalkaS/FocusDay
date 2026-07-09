@@ -6,18 +6,19 @@ final class OnboardingViewModel: ObservableObject {
     @Published var selectedGoal: FocusGoal = .work
     @Published var morningReminderTime: Date
     @Published var eveningReminderTime: Date
+    @Published var areNotificationsEnabled: Bool = true
 
     init(userName: String = "") {
         self.userName = userName
         morningReminderTime = Calendar.current.date(
-            bySettingHour: 8,
-            minute: 30,
+            bySettingHour: 9,
+            minute: 0,
             second: 0,
             of: Date()
         ) ?? Date()
         eveningReminderTime = Calendar.current.date(
             bySettingHour: 20,
-            minute: 30,
+            minute: 0,
             second: 0,
             of: Date()
         ) ?? Date()
@@ -36,10 +37,15 @@ final class OnboardingViewModel: ObservableObject {
         defaults.set(selectedGoal.rawValue, forKey: UserDefaultsKeys.selectedGoal)
         defaults.set(morningReminderTime, forKey: UserDefaultsKeys.morningReminderTime)
         defaults.set(eveningReminderTime, forKey: UserDefaultsKeys.eveningReminderTime)
+        defaults.set(areNotificationsEnabled, forKey: UserDefaultsKeys.areNotificationsEnabled)
 
-        await NotificationService.shared.scheduleDailyNotifications(
-            morningTime: morningReminderTime,
-            eveningTime: eveningReminderTime
-        )
+        if areNotificationsEnabled {
+            await NotificationService.shared.scheduleDailyNotifications(
+                morningTime: morningReminderTime,
+                eveningTime: eveningReminderTime
+            )
+        } else {
+            NotificationService.shared.cancelDailyNotifications()
+        }
     }
 }

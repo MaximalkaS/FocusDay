@@ -23,7 +23,6 @@
 		000000000000000000000024 /* LocalizedStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000025 /* LocalizedStrings.swift */; };
 		000000000000000000000026 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000027 /* NotificationService.swift */; };
 		000000000000000000000028 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000029 /* AppTheme.swift */; };
-		00000000000000000000002A /* FocusDayWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002B /* FocusDayWidgetStore.swift */; };
 		00000000000000000000002C /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002D /* PreviewData.swift */; };
 		00000000000000000000002E /* FocusDayCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002F /* FocusDayCard.swift */; };
 		000000000000000000000030 /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000031 /* PrimaryButton.swift */; };
@@ -40,41 +39,12 @@
 		000000000000000000000046 /* ProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000047 /* ProgressView.swift */; };
 		000000000000000000000048 /* EveningSummaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000049 /* EveningSummaryView.swift */; };
 		00000000000000000000004A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000004B /* SettingsView.swift */; };
-		00000000000000000000004C /* FocusDayWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000004D /* FocusDayWidget.swift */; };
-		00000000000000000000004E /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000029 /* AppTheme.swift */; };
-		00000000000000000000004F /* FocusDayWidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000002B /* FocusDayWidgetStore.swift */; };
-		000000000000000000000050 /* LocalizedStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000025 /* LocalizedStrings.swift */; };
-		000000000000000000000053 /* FocusDayWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 000000000000000000000002 /* FocusDayWidgetExtension.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		000000000000000000000080 /* SettingsSharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000081 /* SettingsSharedComponents.swift */; };
 		A10000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000052 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-		000000000000000000000054 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 000000000000000000000009 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 000000000000000000000004;
-			remoteInfo = FocusDayWidgetExtension;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		000000000000000000000055 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				000000000000000000000053 /* FocusDayWidgetExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		000000000000000000000001 /* FocusDay.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FocusDay.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		000000000000000000000002 /* FocusDayWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FocusDayWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		00000000000000000000000B /* FocusDayApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDayApp.swift; sourceTree = "<group>"; };
 		00000000000000000000000D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		00000000000000000000000F /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -91,7 +61,6 @@
 		000000000000000000000025 /* LocalizedStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStrings.swift; sourceTree = "<group>"; };
 		000000000000000000000027 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		000000000000000000000029 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
-		00000000000000000000002B /* FocusDayWidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDayWidgetStore.swift; sourceTree = "<group>"; };
 		00000000000000000000002D /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
 		00000000000000000000002F /* FocusDayCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDayCard.swift; sourceTree = "<group>"; };
 		000000000000000000000031 /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
@@ -108,23 +77,14 @@
 		000000000000000000000047 /* ProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressView.swift; sourceTree = "<group>"; };
 		000000000000000000000049 /* EveningSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EveningSummaryView.swift; sourceTree = "<group>"; };
 		00000000000000000000004B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		00000000000000000000004D /* FocusDayWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDayWidget.swift; sourceTree = "<group>"; };
 		000000000000000000000052 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		000000000000000000000056 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000057 /* FocusDay.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusDay.entitlements; sourceTree = "<group>"; };
-		000000000000000000000058 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		000000000000000000000059 /* FocusDayWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusDayWidgetExtension.entitlements; sourceTree = "<group>"; };
+		000000000000000000000081 /* SettingsSharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSharedComponents.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		00000000000000000000005A /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		00000000000000000000005B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -138,7 +98,6 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000007 /* FocusDay */,
-				000000000000000000000008 /* FocusDayWidget */,
 				000000000000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -147,7 +106,6 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000001 /* FocusDay.app */,
-				000000000000000000000002 /* FocusDayWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -166,16 +124,6 @@
 				000000000000000000000057 /* FocusDay.entitlements */,
 			);
 			path = FocusDay;
-			sourceTree = "<group>";
-		};
-		000000000000000000000008 /* FocusDayWidget */ = {
-			isa = PBXGroup;
-			children = (
-				00000000000000000000004D /* FocusDayWidget.swift */,
-				000000000000000000000058 /* Info.plist */,
-				000000000000000000000059 /* FocusDayWidgetExtension.entitlements */,
-			);
-			path = FocusDayWidget;
 			sourceTree = "<group>";
 		};
 		00000000000000000000005C /* App */ = {
@@ -240,7 +188,6 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000029 /* AppTheme.swift */,
-				00000000000000000000002B /* FocusDayWidgetStore.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -321,6 +268,7 @@
 				00000000000000000000003B /* MainTaskCard.swift */,
 				00000000000000000000003D /* MoodEnergyControls.swift */,
 				00000000000000000000003F /* TaskRowView.swift */,
+				000000000000000000000081 /* SettingsSharedComponents.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -335,34 +283,15 @@
 				00000000000000000000006C /* Sources */,
 				00000000000000000000005A /* Frameworks */,
 				00000000000000000000006D /* Resources */,
-				000000000000000000000055 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				00000000000000000000006E /* PBXTargetDependency */,
 			);
 			name = FocusDay;
 			productName = FocusDay;
 			productReference = 000000000000000000000001 /* FocusDay.app */;
 			productType = "com.apple.product-type.application";
-		};
-		000000000000000000000004 /* FocusDayWidgetExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 00000000000000000000006F /* Build configuration list for PBXNativeTarget "FocusDayWidgetExtension" */;
-			buildPhases = (
-				000000000000000000000070 /* Sources */,
-				00000000000000000000005B /* Frameworks */,
-				000000000000000000000071 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = FocusDayWidgetExtension;
-			productName = FocusDayWidgetExtension;
-			productReference = 000000000000000000000002 /* FocusDayWidgetExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -376,19 +305,6 @@
 				TargetAttributes = {
 					000000000000000000000003 = {
 						CreatedOnToolsVersion = 16.0;
-						SystemCapabilities = {
-							com.apple.ApplicationGroups.iOS = {
-								enabled = 1;
-							};
-						};
-					};
-					000000000000000000000004 = {
-						CreatedOnToolsVersion = 16.0;
-						SystemCapabilities = {
-							com.apple.ApplicationGroups.iOS = {
-								enabled = 1;
-							};
-						};
 					};
 				};
 			};
@@ -406,7 +322,6 @@
 			projectRoot = "";
 			targets = (
 				000000000000000000000003 /* FocusDay */,
-				000000000000000000000004 /* FocusDayWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -417,13 +332,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		000000000000000000000071 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -450,7 +358,6 @@
 				000000000000000000000024 /* LocalizedStrings.swift in Sources */,
 				000000000000000000000026 /* NotificationService.swift in Sources */,
 				000000000000000000000028 /* AppTheme.swift in Sources */,
-				00000000000000000000002A /* FocusDayWidgetStore.swift in Sources */,
 				00000000000000000000002C /* PreviewData.swift in Sources */,
 				00000000000000000000002E /* FocusDayCard.swift in Sources */,
 				000000000000000000000030 /* PrimaryButton.swift in Sources */,
@@ -461,6 +368,7 @@
 				00000000000000000000003A /* MainTaskCard.swift in Sources */,
 				00000000000000000000003C /* MoodEnergyControls.swift in Sources */,
 				00000000000000000000003E /* TaskRowView.swift in Sources */,
+				000000000000000000000080 /* SettingsSharedComponents.swift in Sources */,
 				000000000000000000000040 /* OnboardingView.swift in Sources */,
 				000000000000000000000042 /* TodayView.swift in Sources */,
 				000000000000000000000044 /* CreateTaskView.swift in Sources */,
@@ -470,26 +378,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		000000000000000000000070 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				00000000000000000000004C /* FocusDayWidget.swift in Sources */,
-				00000000000000000000004E /* AppTheme.swift in Sources */,
-				00000000000000000000004F /* FocusDayWidgetStore.swift in Sources */,
-				000000000000000000000050 /* LocalizedStrings.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		00000000000000000000006E /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 000000000000000000000004 /* FocusDayWidgetExtension */;
-			targetProxy = 000000000000000000000054 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		000000000000000000000073 /* Debug */ = {
@@ -552,6 +441,7 @@
 		000000000000000000000074 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = FocusDay/FocusDay.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -571,29 +461,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		000000000000000000000075 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = FocusDayWidget/FocusDayWidgetExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V75W9W7M54;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = FocusDayWidget/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.maximka.focusday.mvp.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -656,6 +523,7 @@
 		000000000000000000000077 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = FocusDay/FocusDay.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -678,29 +546,6 @@
 			};
 			name = Release;
 		};
-		000000000000000000000078 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = FocusDayWidget/FocusDayWidgetExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = V75W9W7M54;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = FocusDayWidget/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.maximka.focusday.mvp.widget;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -709,15 +554,6 @@
 			buildConfigurations = (
 				000000000000000000000074 /* Debug */,
 				000000000000000000000077 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		00000000000000000000006F /* Build configuration list for PBXNativeTarget "FocusDayWidgetExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				000000000000000000000075 /* Debug */,
-				000000000000000000000078 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

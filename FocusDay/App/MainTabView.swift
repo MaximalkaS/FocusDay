@@ -24,6 +24,7 @@ struct SaveFeedback: Equatable {
 final class AppState: ObservableObject {
     @Published private(set) var saveFeedback = SaveFeedback.hidden
     @Published private(set) var taskListRevision = 0
+    @Published private(set) var streakCelebration: StreakCelebration?
 
     private var feedbackTask: Task<Void, Never>?
 
@@ -77,10 +78,21 @@ final class AppState: ObservableObject {
     func taskDataDidChange() {
         taskListRevision += 1
     }
+
+    func presentStreakCelebration(_ streakCelebration: StreakCelebration) {
+        self.streakCelebration = streakCelebration
+    }
+
+    func dismissStreakCelebration() {
+        streakCelebration = nil
+    }
 }
 
 struct SaveStatusSnackbar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let status: SaveStatus
+    var successText: String = LocalizedStrings.changesSaved
 
     private let cornerRadius: CGFloat = 12
     private let snackbarWidth: CGFloat = 300
@@ -103,7 +115,7 @@ struct SaveStatusSnackbar: View {
         .frame(width: snackbarWidth, height: snackbarHeight)
         .shadow(color: Color.black.opacity(0.14), radius: 14, x: 0, y: 6)
         .opacity(status == .hidden ? 0 : 1)
-        .animation(.easeInOut(duration: 0.24), value: status == .hidden)
+        .animation(AppMotion.quick(reduceMotion), value: status == .hidden)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
     }
@@ -114,43 +126,229 @@ struct SaveStatusSnackbar: View {
                 .controlSize(.small)
                 .tint(AppTheme.primaryBlue)
                 .opacity(status == .loading ? 1 : 0)
-                .scaleEffect(status == .loading ? 1 : 0.82)
+                .scaleEffect(status == .loading || reduceMotion ? 1 : 0.82)
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
+                .font(AppTypography.snackbarSuccessIcon)
                 .foregroundStyle(AppTheme.success)
                 .opacity(status == .success ? 1 : 0)
-                .scaleEffect(status == .success ? 1 : 0.82)
+                .scaleEffect(status == .success || reduceMotion ? 1 : 0.82)
         }
         .frame(width: 28, height: 28)
-        .animation(.easeInOut(duration: 0.22), value: status)
+        .animation(AppMotion.quick(reduceMotion), value: status)
     }
 
     private var statusText: some View {
         ZStack(alignment: .leading) {
             Text(LocalizedStrings.savingProgress)
                 .opacity(status == .loading ? 1 : 0)
-                .scaleEffect(status == .loading ? 1 : 0.98, anchor: .leading)
+                .scaleEffect(status == .loading || reduceMotion ? 1 : 0.98, anchor: .leading)
 
-            Text(LocalizedStrings.changesSaved)
+            Text(successText)
                 .opacity(status == .success ? 1 : 0)
-                .scaleEffect(status == .success ? 1 : 0.98, anchor: .leading)
+                .scaleEffect(status == .success || reduceMotion ? 1 : 0.98, anchor: .leading)
         }
-        .font(.subheadline.weight(.semibold))
+        .font(AppTypography.sectionTitleSemibold)
         .foregroundStyle(AppTheme.text)
         .lineLimit(2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeInOut(duration: 0.22), value: status)
+        .animation(AppMotion.quick(reduceMotion), value: status)
     }
 }
 
 struct SaveFeedbackOverlay: View {
     let status: SaveStatus
+    var successText: String = LocalizedStrings.changesSaved
 
     var body: some View {
-        SaveStatusSnackbar(status: status)
+        SaveStatusSnackbar(status: status, successText: successText)
             .frame(maxWidth: .infinity, minHeight: 68, alignment: .top)
             .allowsHitTesting(false)
+    }
+}
+
+struct StreakCelebrationOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isBackgroundVisible = false
+    @State private var isCardVisible = false
+    @State private var isDismissing = false
+    @State private var isIconVisible = false
+    @State private var isTitleVisible = false
+    @State private var isCountVisible = false
+    @State private var isSubtitleVisible = false
+    @State private var isButtonVisible = false
+
+    let dayCount: Int
+    let previewReduceMotion: Bool?
+    let onContinue: () -> Void
+
+    init(
+        dayCount: Int,
+        previewReduceMotion: Bool? = nil,
+        onContinue: @escaping () -> Void
+    ) {
+        self.dayCount = dayCount
+        self.previewReduceMotion = previewReduceMotion
+        self.onContinue = onContinue
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .opacity(isBackgroundVisible ? 0.25 : 0)
+                .ignoresSafeArea()
+
+            card
+                .padding(.horizontal, 28)
+                .opacity(isCardVisible ? 1 : 0)
+                .scaleEffect(cardScale)
+                .offset(y: cardOffset)
+        }
+        .zIndex(100)
+        .allowsHitTesting(true)
+        .onAppear {
+            runAppearAnimation()
+        }
+    }
+
+    private var card: some View {
+        VStack(spacing: 14) {
+            stagedElement(isIconVisible) {
+                Image(systemName: "flame.fill")
+                    .font(AppTypography.streakIcon)
+                    .foregroundStyle(AppTheme.primaryBlue)
+                    .frame(width: 56, height: 56)
+                    .background(AppTheme.primaryBlue.opacity(0.12))
+                    .clipShape(Circle())
+            }
+
+            VStack(spacing: 6) {
+                stagedElement(isTitleVisible) {
+                    Text(celebrationTitle)
+                        .font(AppTypography.progressCardValue)
+                        .foregroundStyle(AppTheme.text)
+                        .multilineTextAlignment(.center)
+                }
+
+                stagedElement(isCountVisible) {
+                    Text(LocalizedStrings.streakDaysInRow(dayCount))
+                        .font(AppTypography.streakCount)
+                        .foregroundStyle(AppTheme.primaryBlue)
+                        .multilineTextAlignment(.center)
+                }
+
+                stagedElement(isSubtitleVisible) {
+                    Text(LocalizedStrings.streakCelebrationSubtitle)
+                        .font(AppTypography.screenSubtitle)
+                        .foregroundStyle(Color(hex: "64748B"))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            stagedElement(isButtonVisible) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text(LocalizedStrings.continueTitle)
+                        .font(AppTypography.primaryButton)
+                        .foregroundStyle(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(AppTheme.primaryBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 22)
+        .frame(maxWidth: 320)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 14)
+    }
+
+    private var cardScale: CGFloat {
+        guard usesReducedMotion == false else { return 1 }
+        if isCardVisible { return 1 }
+        return isDismissing ? 0.98 : 0.96
+    }
+
+    private var cardOffset: CGFloat {
+        guard usesReducedMotion == false else { return 0 }
+        if isCardVisible { return 0 }
+        return isDismissing ? 8 : 14
+    }
+
+    private var usesReducedMotion: Bool {
+        previewReduceMotion ?? reduceMotion
+    }
+
+    private var celebrationTitle: String {
+        dayCount == 1 ? LocalizedStrings.streakCelebrationStartTitle : LocalizedStrings.streakCelebrationTitle
+    }
+
+    private func stagedElement<Content: View>(
+        _ isElementVisible: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .opacity(isElementVisible ? 1 : 0)
+            .offset(y: usesReducedMotion || isElementVisible ? 0 : 6)
+    }
+
+    private func runAppearAnimation() {
+        isDismissing = false
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            isBackgroundVisible = true
+        }
+
+        withAnimation(.easeOut(duration: usesReducedMotion ? 0.18 : 0.34)) {
+            isCardVisible = true
+        }
+
+        reveal(after: 0.05) { isIconVisible = true }
+        reveal(after: 0.10) { isTitleVisible = true }
+        reveal(after: 0.14) { isCountVisible = true }
+        reveal(after: 0.17) { isSubtitleVisible = true }
+        reveal(after: 0.20) { isButtonVisible = true }
+    }
+
+    private func reveal(after delay: Double, action: @escaping @MainActor () -> Void) {
+        let animationDelay = usesReducedMotion ? 0 : delay
+        withAnimation(.easeOut(duration: 0.22).delay(animationDelay)) {
+            action()
+        }
+    }
+
+    private func dismiss() {
+        let dismissalDelay: UInt64 = usesReducedMotion ? 180_000_000 : 260_000_000
+
+        withAnimation(.easeInOut(duration: usesReducedMotion ? 0.18 : 0.26)) {
+            isDismissing = true
+            isBackgroundVisible = false
+            isCardVisible = false
+            isIconVisible = false
+            isTitleVisible = false
+            isCountVisible = false
+            isSubtitleVisible = false
+            isButtonVisible = false
+        }
+
+        Task {
+            do {
+                try await Task.sleep(nanoseconds: dismissalDelay)
+            } catch {
+                return
+            }
+
+            await MainActor.run {
+                onContinue()
+            }
+        }
     }
 }
 
@@ -208,6 +406,8 @@ enum MainTab: CaseIterable, Identifiable {
 }
 
 struct CustomTabBar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Binding var selectedTab: MainTab
 
     var body: some View {
@@ -228,16 +428,17 @@ struct CustomTabBar: View {
 
     private func tabButton(for tab: MainTab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(AppMotion.quick(reduceMotion)) {
                 selectedTab = tab
             }
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: tab.systemImage)
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(AppTypography.plusIcon)
+                    .offset(y: selectedTab == tab && reduceMotion == false ? -2 : 0)
 
                 Text(tab.title)
-                    .font(.caption.weight(.semibold))
+                    .font(AppTypography.tabLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -247,11 +448,14 @@ struct CustomTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .animation(AppMotion.quick(reduceMotion), value: selectedTab)
         .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
     }
 }
 
 struct MainTabView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @StateObject private var appState: AppState
     @State private var selectedTab: MainTab = .today
     @State private var isShowingCreateTask = false
@@ -264,27 +468,27 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack {
-            tabScreen(.today) {
-                TodayView {
-                    isShowingCreateTask = true
-                }
-            }
-
-            tabScreen(.progress) {
-                ProgressView()
-            }
-
-            tabScreen(.settings) {
-                SettingsView()
-            }
+            selectedTabContent
+                .transition(.opacity)
         }
+        .animation(AppMotion.quick(reduceMotion), value: selectedTab)
         .environmentObject(appState)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             CustomTabBar(selectedTab: $selectedTab)
         }
+        .overlay {
+            if let streakCelebration = appState.streakCelebration {
+                StreakCelebrationOverlay(dayCount: streakCelebration.dayCount) {
+                    withAnimation(AppMotion.quick(reduceMotion)) {
+                        appState.dismissStreakCelebration()
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
         .sheet(isPresented: $isShowingCreateTask) {
             CreateTaskView {
-                withAnimation(.easeInOut(duration: 0.22)) {
+                withAnimation(AppMotion.quick(reduceMotion)) {
                     selectedTab = .today
                 }
                 appState.taskDataDidChange()
@@ -292,15 +496,18 @@ struct MainTabView: View {
         }
     }
 
-    private func tabScreen<Content: View>(
-        _ tab: MainTab,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .opacity(selectedTab == tab ? 1 : 0)
-            .allowsHitTesting(selectedTab == tab)
-            .accessibilityHidden(selectedTab != tab)
-            .zIndex(selectedTab == tab ? 1 : 0)
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .today:
+            TodayView {
+                isShowingCreateTask = true
+            }
+        case .progress:
+            ProgressView(isActive: true)
+        case .settings:
+            SettingsView()
+        }
     }
 }
 
@@ -341,6 +548,28 @@ struct MainTabView: View {
         )
         .padding(.horizontal, 16)
     }
+}
+
+#Preview("Серия продлена: 4 дня") {
+    StreakCelebrationOverlay(dayCount: 4) {}
+}
+
+#Preview("Серия началась: 1 день") {
+    StreakCelebrationOverlay(dayCount: 1) {}
+}
+
+#Preview("Серия: первый день без overlay") {
+    ZStack {
+        AppTheme.screenBackground.ignoresSafeArea()
+
+        Text(LocalizedStrings.streakDaysInRow(1))
+            .font(AppTypography.progressCardValue)
+            .foregroundStyle(AppTheme.text)
+    }
+}
+
+#Preview("Серия продлена: Reduce Motion") {
+    StreakCelebrationOverlay(dayCount: 4, previewReduceMotion: true) {}
 }
 
 private struct CustomTabBarPreview: View {

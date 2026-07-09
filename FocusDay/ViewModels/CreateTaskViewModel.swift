@@ -47,11 +47,19 @@ final class CreateTaskViewModel: ObservableObject {
         let cleanedDescription = taskDescription.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let taskToEdit {
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            let taskDay = calendar.startOfDay(for: taskToEdit.date)
+
             taskToEdit.title = cleanedTitle
             taskToEdit.taskDescription = cleanedDescription
             taskToEdit.priority = selectedPriority
             taskToEdit.estimatedMinutes = selectedDuration
             taskToEdit.category = selectedCategory
+
+            if taskDay < today, taskToEdit.isCompleted == false {
+                taskToEdit.date = Date()
+            }
         } else {
             let task = TaskItem(
                 title: cleanedTitle,

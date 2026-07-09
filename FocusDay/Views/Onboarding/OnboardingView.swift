@@ -2,12 +2,9 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var viewModel: OnboardingViewModel
+    @State private var activeReminderPicker: SettingsReminderPicker?
     @FocusState private var isNameFocused: Bool
     private let onFinish: () -> Void
-
-    private let columns = [
-        GridItem(.adaptive(minimum: 130), spacing: 8)
-    ]
 
     @MainActor
     init(onFinish: @escaping () -> Void = {}) {
@@ -23,31 +20,29 @@ struct OnboardingView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header
-                    nameCard
-                    goalCard
-                    remindersCard
+            ZStack(alignment: .bottom) {
+                AppTheme.screenBackground.ignoresSafeArea()
 
-                    PrimaryButton(
-                        LocalizedStrings.start,
-                        systemImage: "arrow.right",
-                        isDisabled: viewModel.canComplete == false
-                    ) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        header
+                        nameCard
+                        goalCard
+                        remindersCard
+                        startButton
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 28)
+                    .padding(.bottom, 36)
+                    .frame(maxWidth: 720)
+                    .frame(maxWidth: .infinity)
+                    .dismissKeyboardOnBackgroundTap {
                         isNameFocused = false
-                        Task {
-                            await viewModel.completeOnboarding()
-                            onFinish()
-                        }
                     }
                 }
-                .padding()
-                .frame(maxWidth: 640)
-                .frame(maxWidth: .infinity)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .background(AppTheme.background.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -57,50 +52,60 @@ struct OnboardingView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var nameCard: some View {
-        FocusDayCard {
-            SectionHeader(title: LocalizedStrings.onboardingNameTitle)
-
-            TextField(
-                "",
-                text: $viewModel.userName,
-                prompt: Text(LocalizedStrings.namePlaceholder)
-                    .foregroundStyle(AppTheme.placeholderText)
-            )
-            .focused($isNameFocused)
-            .textContentType(.name)
-            .textInputAutocapitalization(.words)
-            .textFieldStyle(AppTextFieldStyle())
+            .sheet(item: $activeReminderPicker) { picker in
+                SettingsReminderTimePickerSheet(
+                    title: picker.title,
+                    time: reminderTimeBinding(for: picker)
+                )
+                .presentationDetents([.height(340)])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(LocalizedStrings.onboardingWelcomeTitle)
-                .font(.largeTitle.bold())
+                .font(AppTypography.screenTitle)
                 .foregroundStyle(AppTheme.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(LocalizedStrings.onboardingWelcomeText)
-                .font(.body)
-                .foregroundStyle(AppTheme.mutedText)
+                .font(AppTypography.screenSubtitle)
+                .foregroundStyle(Color(hex: "64748B"))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.top, 24)
+        .padding(.top, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var nameCard: some View {
+        SettingsSurfaceCard {
+            Text(LocalizedStrings.onboardingNameTitle)
+                .font(AppTypography.sectionTitle)
+                .foregroundStyle(AppTheme.text)
+
+            SettingsNameField(text: $viewModel.userName, isFocused: $isNameFocused)
+        }
     }
 
     private var goalCard: some View {
-        FocusDayCard {
-            SectionHeader(title: LocalizedStrings.onboardingGoalTitle)
+        SettingsSurfaceCard {
+            Text(LocalizedStrings.onboardingGoalTitle)
+                .font(AppTypography.sectionTitle)
+                .foregroundStyle(AppTheme.text)
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(FocusGoal.allCases) { goal in
-                    ChoiceChip(
-                        title: goal.title,
-                        isSelected: goal == viewModel.selectedGoal
-                    ) {
+            TwoColumnSelectionGrid(
+                items: FocusGoal.allCases,
+                horizontalSpacing: 10,
+                verticalSpacing: 12
+            ) { goal in
+                SettingsGoalOptionCard(
+                    goal: goal,
+                    isSelected: goal == viewModel.selectedGoal
+                ) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
                         viewModel.selectedGoal = goal
                     }
                 }
@@ -109,20 +114,92 @@ struct OnboardingView: View {
     }
 
     private var remindersCard: some View {
-        FocusDayCard {
-            SectionHeader(title: LocalizedStrings.onboardingReminderTitle)
+        SettingsSurfaceCard {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(LocalizedStrings.notifications)
+                        .font(AppTypography.sectionTitle)
+                        .foregroundStyle(AppTheme.text)
 
-            DatePicker(
-                LocalizedStrings.morningReminder,
-                selection: $viewModel.morningReminderTime,
-                displayedComponents: .hourAndMinute
-            )
+                    Text(LocalizedStrings.notificationsSubtitle)
+                        .font(AppTypography.screenSubtitle)
+                        .foregroundStyle(Color(hex: "64748B"))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            DatePicker(
-                LocalizedStrings.eveningReminder,
-                selection: $viewModel.eveningReminderTime,
-                displayedComponents: .hourAndMinute
-            )
+                Spacer(minLength: 8)
+
+                Toggle("", isOn: $viewModel.areNotificationsEnabled)
+                    .labelsHidden()
+                    .tint(AppTheme.primaryBlue)
+            }
+
+            VStack(spacing: 0) {
+                SettingsReminderTimeRow(
+                    systemImage: "sun.max.fill",
+                    iconColor: AppTheme.primaryBlue,
+                    title: LocalizedStrings.morningReminderTitle,
+                    subtitle: LocalizedStrings.morningReminder,
+                    time: viewModel.morningReminderTime
+                ) {
+                    isNameFocused = false
+                    activeReminderPicker = .morning
+                }
+
+                Divider()
+                    .overlay(Color(hex: "D7E8FA"))
+                    .padding(.leading, 64)
+
+                SettingsReminderTimeRow(
+                    systemImage: "moon.stars.fill",
+                    iconColor: AppTheme.primaryBlue,
+                    title: LocalizedStrings.eveningReminderTitle,
+                    subtitle: LocalizedStrings.eveningReminder,
+                    time: viewModel.eveningReminderTime
+                ) {
+                    isNameFocused = false
+                    activeReminderPicker = .evening
+                }
+            }
+            .opacity(viewModel.areNotificationsEnabled ? 1 : 0.48)
+            .disabled(viewModel.areNotificationsEnabled == false)
+        }
+    }
+
+    private var startButton: some View {
+        Button {
+            isNameFocused = false
+            Task {
+                await viewModel.completeOnboarding()
+                onFinish()
+            }
+        } label: {
+            Text(LocalizedStrings.start)
+                .font(AppTypography.primaryButton)
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 58)
+                .background(
+                    LinearGradient(
+                        colors: [AppTheme.primaryBlue, Color(hex: "0A6BFF")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: AppTheme.primaryBlue.opacity(0.24), radius: 14, x: 0, y: 8)
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.canComplete == false)
+        .opacity(viewModel.canComplete ? 1 : 0.58)
+    }
+
+    private func reminderTimeBinding(for picker: SettingsReminderPicker) -> Binding<Date> {
+        switch picker {
+        case .morning:
+            $viewModel.morningReminderTime
+        case .evening:
+            $viewModel.eveningReminderTime
         }
     }
 }
@@ -130,5 +207,33 @@ struct OnboardingView: View {
 #if DEBUG
 #Preview {
     OnboardingView(viewModel: OnboardingViewModel(userName: "Максим"))
+}
+
+#Preview(
+    "Онбординг: iPhone SE",
+    traits: .fixedLayout(width: 320, height: 760)
+) {
+    OnboardingView(viewModel: OnboardingViewModel(userName: ""))
+}
+
+#Preview("Цели: остаток на всю ширину") {
+    SettingsSurfaceCard {
+        Text(LocalizedStrings.onboardingGoalTitle)
+            .font(AppTypography.sectionTitle)
+            .foregroundStyle(AppTheme.text)
+
+        TwoColumnSelectionGrid(items: FocusGoal.allCases) { goal in
+            SettingsGoalOptionCard(goal: goal, isSelected: goal == .personal) {}
+        }
+    }
+    .padding(16)
+    .background(AppTheme.screenBackground)
+}
+
+#Preview("Sheet времени онбординга") {
+    SettingsReminderTimePickerSheet(
+        title: LocalizedStrings.morningReminderTitle,
+        time: .constant(Date())
+    )
 }
 #endif

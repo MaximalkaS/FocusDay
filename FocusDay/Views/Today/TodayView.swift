@@ -3,11 +3,14 @@ import SwiftUI
 struct TodayView: View {
     @AppStorage(UserDefaultsKeys.userName) private var userName = ""
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: TodayViewModel
     @State private var taskToEdit: TaskItem?
     @State private var taskPendingDeletion: TaskItem?
     @State private var activeMenuTaskID: UUID?
+    @State private var isShowingEveningSummary = false
     private let onAddTask: () -> Void
 
     @MainActor
@@ -45,18 +48,19 @@ struct TodayView: View {
                         task: viewModel.mainTask,
                         isActionMenuPresented: actionMenuBinding(for: viewModel.mainTask?.id),
                         onToggle: {
-                            withAnimation(.easeInOut(duration: 0.28)) {
+                            let streakCelebration = withAnimation(AppMotion.smooth(reduceMotion)) {
                                 viewModel.toggleMainTaskCompletion()
                             }
                             appState.taskDataDidChange()
+                            presentStreakCelebrationIfNeeded(streakCelebration)
                         },
                         onChoose: {
-                            withAnimation(.easeInOut(duration: 0.28)) {
+                            withAnimation(AppMotion.smooth(reduceMotion)) {
                                 viewModel.chooseMainTask()
                             }
                         },
                         onRemoveMain: {
-                            withAnimation(.easeInOut(duration: 0.24)) {
+                            withAnimation(AppMotion.smooth(reduceMotion)) {
                                 viewModel.removeMainTask()
                             }
                         },
@@ -80,6 +84,7 @@ struct TodayView: View {
                 .frame(maxWidth: 720)
                 .frame(maxWidth: .infinity)
             }
+            .scrollIndicators(.hidden)
             .tabBarContentPadding()
             .background(AppTheme.screenBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
@@ -89,18 +94,35 @@ struct TodayView: View {
             .onChange(of: appState.taskListRevision) { _, _ in
                 viewModel.loadToday()
             }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active else { return }
+                viewModel.loadToday()
+                appState.taskDataDidChange()
+            }
             .overlay(alignment: .top) {
                 SaveFeedbackOverlay(
-                    status: appState.status(for: [.eveningSummary, .progress, .taskDeletion])
+                    status: appState.status(for: [.eveningSummary, .progress, .taskDeletion]),
+                    successText: appState.status(for: .eveningSummary) == .hidden
+                        ? LocalizedStrings.changesSaved
+                        : LocalizedStrings.dayCompleted
                 )
                     .padding(.top, 8)
+            }
+            .overlayPreferenceValue(TaskActionMenuAnchorPreferenceKey.self) { anchors in
+                taskActionMenuOverlay(anchors)
             }
         }
         .sheet(item: $taskToEdit) { task in
             CreateTaskView(task: task) {
-                withAnimation(.easeInOut(duration: 0.24)) {
+                withAnimation(AppMotion.quick(reduceMotion)) {
                     viewModel.loadToday()
                 }
+                appState.taskDataDidChange()
+            }
+        }
+        .sheet(isPresented: $isShowingEveningSummary) {
+            EveningSummaryView {
+                viewModel.loadToday()
                 appState.taskDataDidChange()
             }
         }
@@ -125,30 +147,28 @@ struct TodayView: View {
                 .zIndex(10)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: taskPendingDeletion != nil)
+        .animation(AppMotion.quick(reduceMotion), value: taskPendingDeletion != nil)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(greetingTitle)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(AppTypography.screenTitle)
                     .foregroundStyle(AppTheme.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                Text(viewModel.formattedDate)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.mutedText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                Text(compactFormattedDate)
+                    .font(AppTypography.screenSubtitle)
+                    .foregroundStyle(Color(hex: "64748B"))
             }
 
             Spacer(minLength: 4)
 
             Button(action: onAddTask) {
                 Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(AppTypography.plusIcon)
                     .foregroundStyle(.white)
                     .frame(width: 48, height: 48)
                     .background(AppTheme.primaryBlue)
@@ -159,6 +179,8 @@ struct TodayView: View {
             .contentShape(Circle())
             .accessibilityLabel(LocalizedStrings.addTask)
         }
+        .padding(.top, 6)
+        .padding(.bottom, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -174,7 +196,7 @@ struct TodayView: View {
                         Text(LocalizedStrings.add)
                         Image(systemName: "plus.circle.fill")
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppTypography.buttonText)
                     .foregroundStyle(AppTheme.primaryBlue)
                     .frame(minHeight: 44)
                 }
@@ -183,10 +205,7 @@ struct TodayView: View {
             }
 
             if viewModel.additionalTasks.isEmpty {
-                Text(LocalizedStrings.noAdditionalTasks)
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.mutedText)
-                    .fixedSize(horizontal: false, vertical: true)
+                EmptyAdditionalTasksView()
             } else {
                 VStack(spacing: 10) {
                     ForEach(viewModel.additionalTasks) { task in
@@ -195,14 +214,21 @@ struct TodayView: View {
                             isMain: viewModel.mainTask?.id == task.id,
                             isActionMenuPresented: actionMenuBinding(for: task.id),
                             onToggle: {
-                                viewModel.toggleCompletion(for: task)
+                                let streakCelebration = withAnimation(AppMotion.quick(reduceMotion)) {
+                                    viewModel.toggleCompletion(for: task)
+                                }
                                 appState.taskDataDidChange()
+                                presentStreakCelebrationIfNeeded(streakCelebration)
                             },
                             onMakeMain: {
-                                viewModel.setMainTask(task)
+                                withAnimation(AppMotion.smooth(reduceMotion)) {
+                                    viewModel.setMainTask(task)
+                                }
                             },
                             onRemoveMain: {
-                                viewModel.removeMainTask()
+                                withAnimation(AppMotion.smooth(reduceMotion)) {
+                                    viewModel.removeMainTask()
+                                }
                             },
                             onEdit: {
                                 taskToEdit = task
@@ -211,9 +237,10 @@ struct TodayView: View {
                                 requestDeletion(of: task)
                             }
                         )
+                        .transition(AppMotion.appearTransition(reduceMotion))
                     }
                 }
-                .animation(.easeInOut(duration: 0.28), value: viewModel.mainTask?.id)
+                .animation(AppMotion.smooth(reduceMotion), value: viewModel.additionalTasks.map(\.id))
             }
         }
     }
@@ -223,7 +250,7 @@ struct TodayView: View {
             HStack {
                 SectionHeader(title: LocalizedStrings.taskProgress)
                 Text(LocalizedStrings.completedOutOfTotal(viewModel.completedTasksCount, viewModel.totalTasksCount))
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppTypography.sectionTitleSemibold)
                     .foregroundStyle(AppTheme.primaryBlue)
             }
 
@@ -232,14 +259,11 @@ struct TodayView: View {
     }
 
     private var eveningLink: some View {
-        NavigationLink {
-            EveningSummaryView {
-                viewModel.loadToday()
-                appState.taskDataDidChange()
-            }
+        Button {
+            isShowingEveningSummary = true
         } label: {
             Label(LocalizedStrings.goToEveningSummary, systemImage: "flag")
-                .font(.headline)
+                .font(AppTypography.primaryButton)
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 54)
@@ -256,13 +280,13 @@ struct TodayView: View {
     }
 
     private func requestDeletion(of task: TaskItem) {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(AppMotion.quick(reduceMotion)) {
             taskPendingDeletion = task
         }
     }
 
     private func cancelDeletion() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(AppMotion.quick(reduceMotion)) {
             taskPendingDeletion = nil
         }
     }
@@ -270,7 +294,7 @@ struct TodayView: View {
     private func deleteTask(_ task: TaskItem) {
         appState.beginSaving(.taskDeletion)
 
-        let didDelete = withAnimation(.easeInOut(duration: 0.24)) {
+        let didDelete = withAnimation(AppMotion.smooth(reduceMotion)) {
             viewModel.deleteTask(task)
         }
 
@@ -284,10 +308,130 @@ struct TodayView: View {
         }
     }
 
+    private func presentStreakCelebrationIfNeeded(_ streakCelebration: StreakCelebration?) {
+        guard let streakCelebration else { return }
+
+        withAnimation(.easeOut(duration: reduceMotion ? 0.14 : 0.22)) {
+            appState.presentStreakCelebration(streakCelebration)
+        }
+    }
+
+    private func task(for id: UUID) -> TaskItem? {
+        if viewModel.mainTask?.id == id {
+            return viewModel.mainTask
+        }
+
+        return viewModel.additionalTasks.first { $0.id == id }
+    }
+
+    @ViewBuilder
+    private func taskActionMenuOverlay(_ anchors: [UUID: Anchor<CGRect>]) -> some View {
+        GeometryReader { proxy in
+            if let activeMenuTaskID,
+               let anchor = anchors[activeMenuTaskID],
+               let task = task(for: activeMenuTaskID) {
+                let buttonFrame = proxy[anchor]
+                let isMainTask = viewModel.mainTask?.id == task.id
+                let menuHeight = TaskActionMenu.preferredHeight(
+                    taskIsCompleted: task.isCompleted,
+                    isMain: isMainTask
+                )
+                let placement = taskActionMenuPlacement(
+                    buttonFrame: buttonFrame,
+                    menuHeight: menuHeight,
+                    containerSize: proxy.size
+                )
+
+                ZStack(alignment: .topLeading) {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            closeTaskActionMenu()
+                        }
+
+                    TaskActionMenu(
+                        taskIsCompleted: task.isCompleted,
+                        isMain: isMainTask,
+                        onDismiss: closeTaskActionMenu,
+                        onMakeMain: {
+                            withAnimation(AppMotion.smooth(reduceMotion)) {
+                                viewModel.setMainTask(task)
+                            }
+                        },
+                        onRemoveMain: {
+                            withAnimation(AppMotion.smooth(reduceMotion)) {
+                                viewModel.removeMainTask()
+                            }
+                        },
+                        onEdit: {
+                            taskToEdit = task
+                        },
+                        onDelete: {
+                            requestDeletion(of: task)
+                        },
+                        arrowOffsetY: placement.arrowY
+                    )
+                    .frame(width: TaskActionMenu.preferredWidth)
+                    .position(x: placement.x, y: placement.y)
+                    .transition(AppMotion.appearTransition(reduceMotion))
+                }
+                .zIndex(100)
+            }
+        }
+        .allowsHitTesting(activeMenuTaskID != nil)
+    }
+
+    private func closeTaskActionMenu() {
+        withAnimation(AppMotion.quick(reduceMotion)) {
+            activeMenuTaskID = nil
+        }
+    }
+
+    private func taskActionMenuPlacement(
+        buttonFrame: CGRect,
+        menuHeight: CGFloat,
+        containerSize: CGSize
+    ) -> (x: CGFloat, y: CGFloat, arrowY: CGFloat) {
+        let margin: CGFloat = 12
+        let gap: CGFloat = 12
+        let menuWidth = TaskActionMenu.preferredWidth
+        let rawX = buttonFrame.minX - gap - menuWidth / 2
+        let minX = margin + menuWidth / 2
+        let maxX = max(minX, containerSize.width - margin - menuWidth / 2)
+        let x = min(max(rawX, minX), maxX)
+
+        let rawTop = buttonFrame.midY - 44
+        let maxTop = max(margin, containerSize.height - menuHeight - margin)
+        let top = min(max(rawTop, margin), maxTop)
+        let arrowY = min(max(buttonFrame.midY - top, 28), menuHeight - 28)
+
+        return (x, top + menuHeight / 2, arrowY)
+    }
+
     private var greetingTitle: String {
         let cleanedName = userName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleanedName.isEmpty == false else { return LocalizedStrings.greeting }
-        return LocalizedStrings.personalizedGreeting(cleanedName)
+        return LocalizedStrings.personalizedGreeting(timeBasedGreeting, name: cleanedName)
+    }
+
+    private var timeBasedGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+
+        switch hour {
+        case 5..<12:
+            return LocalizedStrings.morningGreeting
+        case 12..<18:
+            return LocalizedStrings.afternoonGreeting
+        default:
+            return LocalizedStrings.eveningGreeting
+        }
+    }
+
+    private var compactFormattedDate: String {
+        let formatter = DateFormatter()
+        formatter.locale = LocalizedStrings.dateLocale
+        formatter.dateFormat = LocalizedStrings.compactDateFormat
+        let formattedDate = formatter.string(from: Date())
+        return formattedDate.prefix(1).uppercased() + formattedDate.dropFirst()
     }
 
     private func actionMenuBinding(for taskID: UUID?) -> Binding<Bool> {
@@ -297,18 +441,39 @@ struct TodayView: View {
                 return activeMenuTaskID == taskID
             },
             set: { isPresented in
-                if isPresented {
-                    activeMenuTaskID = taskID
-                } else if activeMenuTaskID == taskID {
-                    activeMenuTaskID = nil
+                withAnimation(AppMotion.quick(reduceMotion)) {
+                    if isPresented {
+                        activeMenuTaskID = taskID
+                    } else if activeMenuTaskID == taskID {
+                        activeMenuTaskID = nil
+                    }
                 }
             }
         )
     }
 }
 
+private struct EmptyAdditionalTasksView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isVisible = false
+
+    var body: some View {
+        Text(LocalizedStrings.noAdditionalTasks)
+            .font(AppTypography.screenSubtitle)
+            .foregroundStyle(AppTheme.mutedText)
+            .fixedSize(horizontal: false, vertical: true)
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible || reduceMotion ? 1 : 0.98)
+            .onAppear {
+                withAnimation(AppMotion.quick(reduceMotion)) {
+                    isVisible = true
+                }
+            }
+    }
+}
+
 #if DEBUG
-#Preview {
+#Preview("Сегодня: пояснения энергии и настроения") {
     TodayView()
         .modelContainer(PreviewData.previewContainer())
         .environmentObject(AppState())

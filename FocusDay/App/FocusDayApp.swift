@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct FocusDayApp: App {
-    private let modelContainer: ModelContainer
+    private let modelContainer: ModelContainer?
 
     init() {
         modelContainer = Self.makeModelContainer()
@@ -11,12 +11,16 @@ struct FocusDayApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let modelContainer {
+                ContentView()
+                    .modelContainer(modelContainer)
+            } else {
+                StorageUnavailableView()
+            }
         }
-        .modelContainer(modelContainer)
     }
 
-    private static func makeModelContainer() -> ModelContainer {
+    private static func makeModelContainer() -> ModelContainer? {
         let schema = Schema([
             TaskItem.self,
             DailyState.self,
@@ -27,7 +31,40 @@ struct FocusDayApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {
-            fatalError("Unable to create FocusDay model container: \(error)")
+            return makeFallbackModelContainer(schema: schema)
         }
+    }
+
+    private static func makeFallbackModelContainer(schema: Schema) -> ModelContainer? {
+        let fallbackConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+
+        do {
+            return try ModelContainer(for: schema, configurations: [fallbackConfiguration])
+        } catch {
+            return nil
+        }
+    }
+}
+
+private struct StorageUnavailableView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(AppTypography.storageWarningIcon)
+                .foregroundStyle(AppTheme.primaryBlue)
+
+            Text(LocalizedStrings.storageUnavailableTitle)
+                .font(AppTypography.progressCardValue)
+                .foregroundStyle(AppTheme.text)
+
+            Text(LocalizedStrings.storageUnavailableMessage)
+                .font(AppTypography.screenSubtitle)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(AppTheme.mutedText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background.ignoresSafeArea())
     }
 }

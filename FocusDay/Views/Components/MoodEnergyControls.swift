@@ -1,108 +1,135 @@
 import SwiftUI
+import UIKit
 
 struct MoodSelectionCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let selectedMood: Mood
     let onSelect: (Mood) -> Void
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
 
     var body: some View {
         FocusDayCard {
             SectionHeader(title: LocalizedStrings.moodTitle)
 
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(Mood.allCases) { mood in
+            ExplanationText(LocalizedStrings.moodExplanation)
+
+            TwoColumnSelectionGrid(
+                items: Mood.allCases,
+                horizontalSpacing: 10,
+                verticalSpacing: 10
+            ) { mood in
                     Button {
-                        onSelect(mood)
+                        selectMood(mood)
                     } label: {
+                        let isSelected = selectedMood == mood
+
                         HStack(spacing: 10) {
                             Image(systemName: mood.symbolName)
-                                .font(.title3.weight(.semibold))
+                                .font(AppTypography.sectionTitleSemibold)
                                 .frame(width: 26)
 
                             Text(mood.title)
-                                .font(.subheadline.weight(.semibold))
+                                .font(AppTypography.choiceButtonText)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.75)
                         }
                         .foregroundStyle(mood.tint)
                         .frame(maxWidth: .infinity, minHeight: 56)
                         .padding(.horizontal, 10)
-                        .background(mood.tint.opacity(selectedMood == mood ? 0.16 : 0.08))
+                        .background(mood.tint.opacity(isSelected ? 0.16 : 0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(
-                                    selectedMood == mood ? mood.tint.opacity(0.55) : mood.tint.opacity(0.12),
-                                    lineWidth: selectedMood == mood ? 1.5 : 1
+                                    isSelected ? mood.tint.opacity(0.55) : mood.tint.opacity(0.12),
+                                    lineWidth: isSelected ? 1.5 : 1
                                 )
                         }
+                        .scaleEffect(isSelected && reduceMotion == false ? 1.03 : 1)
                         .contentShape(Rectangle())
+                        .animation(AppMotion.quick(reduceMotion), value: selectedMood)
                     }
                     .buttonStyle(.plain)
-                }
             }
+        }
+    }
+
+    private func selectMood(_ mood: Mood) {
+        guard selectedMood != mood else { return }
+        if reduceMotion == false {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        withAnimation(AppMotion.quick(reduceMotion)) {
+            onSelect(mood)
         }
     }
 }
 
 struct EnergySelectionCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let selectedEnergyLevel: EnergyLevel
     let onSelect: (EnergyLevel) -> Void
-
-    private let columns = Array(
-        repeating: GridItem(.flexible(), spacing: 8),
-        count: 3
-    )
 
     var body: some View {
         FocusDayCard {
             SectionHeader(title: LocalizedStrings.energyTitle)
 
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(EnergyLevel.allCases) { energyLevel in
-                    Button {
-                        onSelect(energyLevel)
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: energyLevel.symbolName)
-                                .font(.headline)
+            ExplanationText(LocalizedStrings.energyExplanation)
 
-                            Text(energyLevel.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.68)
-                        }
-                        .foregroundStyle(
-                            selectedEnergyLevel == energyLevel
-                                ? AppTheme.primaryBlue
-                                : AppTheme.mutedText
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 52)
-                        .padding(.horizontal, 5)
-                        .background(
-                            selectedEnergyLevel == energyLevel
-                                ? AppTheme.primaryBlue.opacity(0.09)
-                                : AppTheme.screenBackground
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(
-                                    selectedEnergyLevel == energyLevel
-                                        ? AppTheme.primaryBlue.opacity(0.55)
-                                        : Color.clear,
-                                    lineWidth: 1.5
-                                )
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
+            TwoColumnSelectionGrid(
+                items: EnergyLevel.allCases,
+                horizontalSpacing: 8,
+                verticalSpacing: 8
+            ) { energyLevel in
+                energyButton(for: energyLevel)
             }
+        }
+    }
+
+    private func energyButton(for energyLevel: EnergyLevel) -> some View {
+        let isSelected = selectedEnergyLevel == energyLevel
+
+        return Button {
+            selectEnergy(energyLevel)
+        } label: {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: energyLevel.symbolName)
+                    .font(AppTypography.sectionTitle)
+                    .frame(width: 22)
+
+                Text(energyLevel.title)
+                    .font(AppTypography.choiceButtonText)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(isSelected ? AppTheme.primaryBlue : Color(hex: "64748B"))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .center)
+            .background(isSelected ? AppTheme.primaryBlue.opacity(0.09) : AppTheme.screenBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(
+                        isSelected ? AppTheme.primaryBlue.opacity(0.55) : Color.clear,
+                        lineWidth: 1.5
+                    )
+            }
+            .scaleEffect(isSelected && reduceMotion == false ? 1.03 : 1)
+            .contentShape(Rectangle())
+            .animation(AppMotion.quick(reduceMotion), value: selectedEnergyLevel)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectEnergy(_ energyLevel: EnergyLevel) {
+        guard selectedEnergyLevel != energyLevel else { return }
+        if reduceMotion == false {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        withAnimation(AppMotion.quick(reduceMotion)) {
+            onSelect(energyLevel)
         }
     }
 }
@@ -135,6 +162,22 @@ private extension EnergyLevel {
     }
 }
 
+private struct ExplanationText: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(AppTypography.compact)
+            .foregroundStyle(Color(hex: "64748B"))
+            .fixedSize(horizontal: false, vertical: true)
+            .multilineTextAlignment(.leading)
+    }
+}
+
 #if DEBUG
 #Preview {
     VStack {
@@ -143,5 +186,15 @@ private extension EnergyLevel {
     }
     .padding()
     .background(AppTheme.screenBackground)
+}
+
+#Preview(
+    "Energy: iPhone SE Dynamic Type",
+    traits: .fixedLayout(width: 320, height: 320)
+) {
+    EnergySelectionCard(selectedEnergyLevel: .medium) { _ in }
+        .padding()
+        .environment(\.dynamicTypeSize, .accessibility2)
+        .background(AppTheme.screenBackground)
 }
 #endif
