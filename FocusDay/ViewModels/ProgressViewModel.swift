@@ -241,7 +241,8 @@ final class ProgressViewModel: ObservableObject {
             today: today
         )
         let completedToday = tasks.filter {
-            $0.isCompleted && calendar.isDate($0.date, inSameDayAs: referenceDate)
+            guard $0.isCompleted else { return false }
+            return calendar.isDate($0.completedAt ?? $0.date, inSameDayAs: referenceDate)
         }.count
 
         completedTasksCount = completedToday
@@ -279,7 +280,7 @@ final class ProgressViewModel: ObservableObject {
         var counts: [Date: Int] = [:]
 
         for task in tasks where task.isCompleted {
-            let day = calendar.startOfDay(for: task.date)
+            let day = calendar.startOfDay(for: task.completedAt ?? task.date)
             guard day <= today else { continue }
             counts[day, default: 0] += 1
         }

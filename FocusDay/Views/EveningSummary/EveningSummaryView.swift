@@ -82,14 +82,13 @@ struct EveningSummaryView: View {
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: focusedField) { _, newValue in
-                guard newValue == .reflection else { return }
-                scrollToReflection(proxy)
-            }
-            .onChange(of: reflectionText) { _, _ in
-                guard focusedField == .reflection else { return }
-                scrollToReflection(proxy)
-            }
+            .keyboardAwareTextEditorScroll(
+                focusedField: focusedField,
+                targetField: .reflection,
+                text: reflectionText,
+                targetId: reflectionCardId,
+                proxy: proxy
+            )
         }
         .background(AppTheme.screenBackground.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
@@ -150,9 +149,10 @@ struct EveningSummaryView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Toggle("", isOn: $didCompleteMainTask)
-                    .labelsHidden()
-                    .tint(AppTheme.primaryBlue)
+                AppToggle(
+                    isOn: $didCompleteMainTask,
+                    accessibilityLabel: LocalizedStrings.eveningQuestion
+                )
             }
 
             completedTasksBadge
@@ -186,11 +186,7 @@ struct EveningSummaryView: View {
                 .font(AppTypography.cardTitleLarge)
                 .foregroundStyle(Color(hex: "0F172A"))
 
-            TwoColumnSelectionGrid(
-                items: DayFeeling.allCases,
-                horizontalSpacing: 10,
-                verticalSpacing: 10
-            ) { feeling in
+            TwoColumnSelectionGrid(items: DayFeeling.allCases) { feeling in
                 EveningFeelingButton(
                     feeling: feeling,
                     isSelected: selectedFeeling == feeling
@@ -211,11 +207,7 @@ struct EveningSummaryView: View {
                 .font(AppTypography.cardTitleLarge)
                 .foregroundStyle(Color(hex: "0F172A"))
 
-            TwoColumnSelectionGrid(
-                items: DayInfluenceReason.allCases,
-                horizontalSpacing: 10,
-                verticalSpacing: 10
-            ) { reason in
+            TwoColumnSelectionGrid(items: DayInfluenceReason.allCases) { reason in
                 EveningReasonButton(
                     reason: reason,
                     isSelected: selectedReasons.contains(reason)
@@ -299,22 +291,6 @@ struct EveningSummaryView: View {
         selectedReasons.insert(reason)
     }
 
-    private func scrollToReflection(_ proxy: ScrollViewProxy) {
-        let delay = reduceMotion ? 0.05 : 0.18
-
-        Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            } catch {
-                return
-            }
-
-            withAnimation(.easeInOut(duration: reduceMotion ? 0.12 : 0.24)) {
-                proxy.scrollTo(reflectionCardId, anchor: .bottom)
-            }
-        }
-    }
-
     private func loadTodayData() {
         do {
             let taskDescriptor = FetchDescriptor<TaskItem>(
@@ -355,7 +331,11 @@ struct EveningSummaryView: View {
     private func saveSummary() {
         focusedField = nil
         appState.beginSaving(.eveningSummary)
-        mainTask?.isCompleted = didCompleteMainTask
+
+        if let mainTask {
+            mainTask.isCompleted = didCompleteMainTask
+            mainTask.completedAt = didCompleteMainTask ? (mainTask.completedAt ?? Date()) : nil
+        }
 
         if didCompleteMainTask {
             dailyState?.mainTaskId = nil
@@ -394,10 +374,12 @@ struct EveningSummaryView: View {
                 modelContext.insert(summary)
             }
 
+            try createNextRepeatingTaskCopies()
             moveUnfinishedTasksToTomorrow()
             dailyState?.mainTaskId = nil
 
             try modelContext.save()
+            WidgetSnapshotService.refresh(modelContext: modelContext)
             message = nil
             onSaved()
             dismiss()
@@ -408,12 +390,59 @@ struct EveningSummaryView: View {
         }
     }
 
+    private func createNextRepeatingTaskCopies() throws {
+        let todayStart = calendar.startOfDay(for: Date())
+        var allTasks = try modelContext.fetch(FetchDescriptor<TaskItem>())
+
+        for task in tasks where task.isCompleted && task.isRepeating {
+            guard let nextDate = task.nextRepeatDate(after: todayStart, calendar: calendar) else { continue }
+
+            let seriesId = task.repeatSeriesId ?? task.id
+            task.repeatSeriesId = seriesId
+            task.repeatStartDate = task.repeatStartDate ?? task.date
+
+            let alreadyHasNextTask = allTasks.contains { existingTask in
+                let existingSeriesId = existingTask.repeatSeriesId ?? (existingTask.isRepeating ? existingTask.id : nil)
+                return existingTask.id != task.id
+                    && existingSeriesId == seriesId
+                    && calendar.isDate(existingTask.date, inSameDayAs: nextDate)
+                    && existingTask.isCompleted == false
+            }
+
+            guard alreadyHasNextTask == false else { continue }
+
+            let nextTask = TaskItem(
+                title: task.title,
+                taskDescription: task.taskDescription,
+                date: nextDate,
+                priority: task.priority,
+                isCompleted: false,
+                estimatedMinutes: task.estimatedMinutes,
+                category: task.category,
+                isRepeating: true,
+                repeatType: task.repeatType,
+                repeatWeekdays: task.repeatWeekdays,
+                repeatStartDate: task.repeatStartDate ?? task.date,
+                repeatSeriesId: seriesId
+            )
+            modelContext.insert(nextTask)
+            allTasks.append(nextTask)
+        }
+    }
+
     private func moveUnfinishedTasksToTomorrow() {
         let todayStart = calendar.startOfDay(for: Date())
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return }
 
         for task in tasks where task.isCompleted == false {
-            task.date = tomorrow
+            if task.isRepeating,
+               let nextRepeatDate = task.nextRepeatDate(after: todayStart, calendar: calendar) {
+                task.repeatSeriesId = task.repeatSeriesId ?? task.id
+                task.repeatStartDate = task.repeatStartDate ?? task.date
+                task.date = nextRepeatDate
+            } else {
+                task.date = tomorrow
+            }
         }
     }
 }
@@ -448,28 +477,17 @@ private struct EveningFeelingButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: feeling.systemImage)
-                    .font(AppTypography.eveningChoiceIcon)
-
-                Text(feeling.title)
-                    .font(AppTypography.controlText)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
-            }
-            .foregroundStyle(feeling.color)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 50)
-            .padding(.horizontal, 10)
-            .background(isSelected ? feeling.color.opacity(0.14) : AppTheme.screenBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(feeling.color.opacity(isSelected ? 0.72 : 0.34), lineWidth: isSelected ? 1.5 : 1)
-            }
-        }
-        .buttonStyle(.plain)
+        SelectionTile(
+            title: feeling.title,
+            systemImage: feeling.systemImage,
+            color: feeling.color,
+            isSelected: isSelected,
+            selectedColor: feeling.color,
+            unselectedBorderColor: feeling.borderColor,
+            selectedBorderColor: feeling.borderColor,
+            selectedBackgroundColor: feeling.selectedBackgroundColor,
+            action: action
+        )
     }
 }
 
@@ -479,24 +497,14 @@ private struct EveningReasonButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Text(reason.title)
-                .font(AppTypography.controlText)
-                .foregroundStyle(isSelected ? AppTheme.primaryBlue : Color(hex: "64748B"))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.82)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: 50)
-                .padding(.horizontal, 10)
-                .background(isSelected ? AppTheme.background : Color(hex: "F8FBFF"))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? AppTheme.primaryBlue : Color(hex: "D8E8FF"), lineWidth: isSelected ? 1.4 : 1)
-                }
-        }
-        .buttonStyle(.plain)
+        SelectionTile(
+            title: reason.title,
+            color: AppTheme.primaryBlue,
+            unselectedColor: Color(hex: "64748B"),
+            isSelected: isSelected,
+            selectedColor: AppTheme.primaryBlue,
+            action: action
+        )
     }
 }
 
@@ -506,32 +514,23 @@ private struct EveningReflectionEditor: View {
     let placeholder: String
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $text)
-                .focused(isFocused, equals: .reflection)
-                .font(AppTypography.eveningScreenSubtitle)
-                .foregroundStyle(AppTheme.text)
-                .tint(AppTheme.primaryBlue)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .scrollContentBackground(.hidden)
-
-            if text.isEmpty {
-                Text(placeholder)
-                    .font(AppTypography.eveningScreenSubtitle)
-                    .foregroundStyle(Color(hex: "8A96B3"))
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 17)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(minHeight: 112)
-        .background(Color(hex: "F7FBFF"))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color(hex: "D8E8FF"), lineWidth: 1.2)
-        }
+        KeyboardAwareTextEditor(
+            text: $text,
+            focusedField: isFocused,
+            field: .reflection,
+            placeholder: placeholder,
+            font: AppTypography.eveningScreenSubtitle,
+            placeholderColor: Color(hex: "8A96B3"),
+            horizontalTextPadding: 12,
+            verticalTextPadding: 12,
+            placeholderHorizontalPadding: 18,
+            placeholderVerticalPadding: 17,
+            minHeight: 112,
+            backgroundColor: Color(hex: "F7FBFF"),
+            cornerRadius: 18,
+            borderColor: Color(hex: "D8E8FF"),
+            borderWidth: 1.2
+        )
     }
 }
 
@@ -569,9 +568,35 @@ private extension DayFeeling {
         case .calm:
             Color(hex: "22C55E")
         case .hard:
-            Color(hex: "FF9F0A")
+            AppTheme.mediumPriority
         case .overloaded:
-            Color(hex: "7C3AED")
+            AppTheme.highPriority
+        }
+    }
+
+    var selectedBackgroundColor: Color {
+        switch self {
+        case .excellent:
+            AppTheme.background
+        case .calm:
+            Color(hex: "DCFCE7")
+        case .hard:
+            Color(hex: "FFF8E7")
+        case .overloaded:
+            Color(hex: "FFE5E5")
+        }
+    }
+
+    var borderColor: Color {
+        switch self {
+        case .excellent:
+            AppTheme.primaryBlue
+        case .calm:
+            color.opacity(0.35)
+        case .hard:
+            color.opacity(0.35)
+        case .overloaded:
+            color.opacity(0.30)
         }
     }
 }

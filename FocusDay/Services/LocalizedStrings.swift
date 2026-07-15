@@ -59,6 +59,57 @@ enum LocalizedStrings {
     static let onboardingGoalTitle = text("Основная цель", "Main Goal")
     static let onboardingReminderTitle = text("Напоминания", "Reminders")
     static let onboardingNameTitle = text("Как к вам обращаться?", "What should we call you?")
+    static let onboardingIntroWelcomeSubtitle = text(
+        "Один день. Одно главное дело.\nМеньше перегрузки — больше результата.",
+        "One day. One main task.\nLess overload — more results."
+    )
+    static let onboardingIntroHowTitle = text("Как работает FocusDay", "How FocusDay Works")
+    static let onboardingIntroHowSubtitle = text(
+        "Всего несколько простых шагов,\nкоторые помогут сохранять фокус\nкаждый день.",
+        "Just a few simple steps\nto help you keep focus\nevery day."
+    )
+    static let onboardingIntroMainTaskTitle = text("Главное дело дня", "Main Task of the Day")
+    static let onboardingIntroMainTaskText = text(
+        "Выберите одну самую важную\nзадачу и сосредоточьтесь\nименно на ней.",
+        "Choose one most important\ntask and focus exactly\non it."
+    )
+    static let onboardingIntroProgressTitle = text("Следите за прогрессом", "Track Your Progress")
+    static let onboardingIntroProgressText = text(
+        "Выполняйте задачи, сохраняйте\nсерию и наблюдайте свой\nежедневный рост.",
+        "Complete tasks, keep your\nstreak, and watch your\ndaily growth."
+    )
+    static let onboardingIntroEveningTitle = text("Вечерний итог", "Evening Summary")
+    static let onboardingIntroEveningText = text(
+        "Каждый вечер анализируйте\nрезультаты и постепенно\nулучшайте свой день.",
+        "Review your results every\nevening and gradually\nimprove your day."
+    )
+    static let onboardingIntroPremiumTitle = text("Получите больше\nвозможностей", "Get More\nPossibilities")
+    static let onboardingIntroPremiumSubtitle = text(
+        "Все основные функции доступны бесплатно.\nPremium открывает дополнительные\nвозможности для тех, кто хочет получить\nмаксимум от FocusDay.",
+        "All core features are available for free.\nPremium unlocks additional\npossibilities for those who want to get\nthe most from FocusDay."
+    )
+    static let onboardingIntroAllHistoryTitle = text("История за всё время", "All-Time History")
+    static let onboardingIntroAllHistoryText = text(
+        "Просматривайте всю историю\nвыполненных задач.",
+        "View your complete history\nof completed tasks."
+    )
+    static let onboardingIntroSearchTitle = text("Поиск и фильтры", "Search and Filters")
+    static let onboardingIntroSearchText = text("Быстро находите нужные задачи.", "Quickly find the tasks you need.")
+    static let onboardingIntroWidgetsTitle = text("Дополнительные виджеты", "Additional Widgets")
+    static let onboardingIntroWidgetsText = text(
+        "Получите ещё больше вариантов\nвиджетов для рабочего стола.",
+        "Get even more widget options\nfor your Home Screen."
+    )
+    static let onboardingIntroFuturePremiumTitle = text("Все будущие Premium-функции", "All Future Premium Features")
+    static let onboardingIntroFuturePremiumText = text(
+        "Все новые Premium-возможности\nбудут доступны автоматически.",
+        "All new Premium features\nwill be available automatically."
+    )
+    static let onboardingIntroTryPremium = text("Попробовать Premium", "Try Premium")
+    static let onboardingIntroContinueFree = text("Продолжить бесплатно", "Continue for Free")
+    static func onboardingIntroPageIndicator(_ current: Int, _ total: Int) -> String {
+        text("Страница \(current) из \(total)", "Page \(current) of \(total)")
+    }
     static let namePlaceholder = text("Ваше имя", "Your name")
     static let profile = text("Профиль", "Profile")
     static let morningReminder = text("Утреннее", "Morning")
@@ -115,6 +166,44 @@ enum LocalizedStrings {
     static let category = text("Категория", "Category")
     static let priority = text("Приоритет", "Priority")
     static let duration = text("Длительность", "Duration")
+    static let repeatSectionTitle = text("Повторение", "Repeat")
+    static let repeatSectionSubtitle = text(
+        "Настройте, когда задача будет появляться снова",
+        "Choose when this task should appear again"
+    )
+    static let repeatToggleLabel = text("Включить повторение", "Enable repeat")
+    static let repeatNone = text("Без повторения", "No repeat")
+    static let repeatEveryDay = text("Каждый день", "Every day")
+    static let repeatWeekdays = text("По будням", "Weekdays")
+    static let repeatWeekly = text("Раз в неделю", "Once a week")
+    static let repeatCustomDays = text("Свои дни", "Custom days")
+    static let repeatOnceInfo = text(
+        "Задача будет создана только на сегодня",
+        "This task will be created only for today"
+    )
+    static let repeatHowTitle = text("Как повторять?", "How should it repeat?")
+    static let repeatDailyInfo = text(
+        "Задача будет появляться каждый день",
+        "This task will appear every day"
+    )
+    static let repeatWeekdaysInfo = text(
+        "Задача будет появляться с понедельника по пятницу",
+        "This task will appear Monday through Friday"
+    )
+    static let repeatWeeklyInfo = text(
+        "Задача будет повторяться раз в неделю",
+        "This task will repeat once a week"
+    )
+    static let repeatSelectDaysTitle = text("Выберите дни", "Choose days")
+    static let repeatSelectAtLeastOneDay = text(
+        "Выберите хотя бы один день",
+        "Choose at least one day"
+    )
+    static let repeatValidationMessage = text(
+        "Для повторения по своим дням выберите хотя бы один день.",
+        "Choose at least one day for custom repeat."
+    )
+    static let repeatingTask = text("Повторяется", "Repeats")
     static let emptyTitleError = text("Нельзя сохранить задачу без названия.", "Task title cannot be empty.")
     static let lowPriority = text("Низкий", "Low")
     static let mediumPriority = text("Средний", "Medium")
@@ -161,7 +250,7 @@ enum LocalizedStrings {
     static let dayFeelingExcellent = text("Отлично", "Great")
     static let dayFeelingCalm = text("Спокойно", "Calm")
     static let dayFeelingHard = text("Непросто", "Difficult")
-    static let dayFeelingOverloaded = text("Перегруженно", "Overloaded")
+    static let dayFeelingOverloaded = text("Тяжело", "Hard day")
     static let whatAffectedDay = text("Что повлияло на день?", "What affected your day?")
     static let influenceNotEnoughTime = text("Не хватило времени", "Not enough time")
     static let influenceLowEnergy = text("Мало энергии", "Low energy")
@@ -195,6 +284,66 @@ enum LocalizedStrings {
     static let eveningNotificationBody = text("Подведи короткий итог дня", "Write a short day summary")
     static let selectedGoal = text("Выбранная цель", "Selected goal")
     static let saveChanges = text("Сохранить изменения", "Save Changes")
+    static let testPlanTitle = text("Тестовый план", "Test Plan")
+    static let testPlanSubtitle = text(
+        "Временное переключение для проверки Premium-функций",
+        "Temporary switch for testing Premium features"
+    )
+    static let freePlanTitle = text("Free", "Free")
+    static let premiumPlanTitle = text("Premium", "Premium")
+    static let premiumBadgeTitle = text("Premium", "Premium")
+    static let premiumFeatureTitle = text("Premium-функция", "Premium Feature")
+    static let premiumFeatureMessage = text(
+        "Скоро здесь появится оформление подписки. Сейчас можно включить Premium в настройках для тестирования.",
+        "Subscription setup will appear here later. For now, enable Premium in Settings for testing."
+    )
+    static let repeatingTasksPremiumMessage = text(
+        "Повторяющиеся задачи доступны в Premium",
+        "Repeating tasks are available in Premium"
+    )
+    static let premiumHistoryTitle = text("Доступно в Premium", "Available in Premium")
+    static let thirtyDayHistoryPremiumMessage = text(
+        "История за 30 дней доступна в Premium. Сейчас можно включить Premium в настройках для тестирования.",
+        "30-day history is available in Premium. For now, enable Premium in Settings for testing."
+    )
+    static let allTimeHistoryPremiumMessage = text(
+        "История за всё время доступна в Premium. Сейчас можно включить Premium в настройках для тестирования.",
+        "All-time history is available in Premium. For now, enable Premium in Settings for testing."
+    )
+    static let historyFiltersPremiumMessage = text(
+        "Фильтры по категории и приоритету доступны в Premium. Сейчас можно включить Premium в настройках для тестирования.",
+        "Category and priority filters are available in Premium. For now, enable Premium in Settings for testing."
+    )
+    static let gotIt = text("Понятно", "Got it")
+    static let toggleOn = text("Включено", "On")
+    static let toggleOff = text("Выключено", "Off")
+    static let all = text("Все", "All")
+    static let history = text("История", "History")
+    static let taskHistoryTitle = text("История задач", "Task History")
+    static let taskHistorySubtitle = text("Все завершённые дела по дням", "All completed tasks by day")
+    static let historyTodayPeriod = text("Сегодня", "Today")
+    static let historySevenDaysPeriod = text("7 дней", "7 Days")
+    static let historyThirtyDaysPeriod = text("30 дней", "30 Days")
+    static let historyAllTimePeriod = text("Все время", "All Time")
+    static let historySearchPlaceholder = text("Поиск...", "Search...")
+    static let filters = text("Фильтры", "Filters")
+    static let filtersSubtitle = text("Уточните, какие задачи показать", "Refine which tasks to show")
+    static let resetFilters = text("Сбросить", "Reset")
+    static let applyFilters = text("Применить", "Apply")
+    static let tasksCompletedLower = text("задач выполнено", "tasks completed")
+    static let excellentWork = text("Отличная работа!", "Great work!")
+    static let historyForToday = text("За сегодня", "Today")
+    static let historyForLast = text("За последние", "Last")
+    static let historyForAllTime = text("За всё время", "All time")
+    static let historyFilteredResults = text("По выбранным фильтрам", "By selected filters")
+    static let noCompletedTasksTitle = text("Пока нет выполненных задач", "No completed tasks yet")
+    static let noCompletedTasksSubtitle = text("Завершите первую задачу,\nи она появится здесь", "Complete your first task,\nand it will appear here")
+    static let noHistoryResultsTitle = text("Ничего не найдено", "Nothing found")
+    static let noHistoryResultsSubtitle = text(
+        "Попробуйте изменить запрос или сбросить фильтры",
+        "Try changing the search or resetting filters"
+    )
+    static let yesterday = text("Вчера", "Yesterday")
 
     static func personalizedGreeting(_ greeting: String, name: String) -> String {
         let cleanedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -297,6 +446,23 @@ enum LocalizedStrings {
 
     static func weeklyDecreaseBadge(_ count: Int) -> String {
         isRussian ? "↓ \(count) к прошлой неделе" : "↓ \(count) vs last week"
+    }
+
+    static func historyLastDays(_ days: Int) -> String {
+        if isRussian {
+            return "\(days) \(pluralForm(days, one: "день", few: "дня", many: "дней"))"
+        }
+
+        return "\(days) \(days == 1 ? "day" : "days")"
+    }
+
+    static func priorityMetadata(_ priority: String) -> String {
+        isRussian ? "\(priority) приоритет" : "\(priority) priority"
+    }
+
+    static func repeatCustomInfo(_ weekdays: [String]) -> String {
+        let joined = weekdays.joined(separator: ", ")
+        return isRussian ? "Задача будет появляться: \(joined)" : "This task will appear on: \(joined)"
     }
 
     static func minutes(_ value: Int) -> String {

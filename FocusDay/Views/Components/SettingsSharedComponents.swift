@@ -67,6 +67,116 @@ struct SettingsNameField: View {
     }
 }
 
+struct AppToggleSize {
+    let width: CGFloat
+    let height: CGFloat
+    let thumbDiameter: CGFloat
+    let inset: CGFloat
+
+    static let standard = AppToggleSize(
+        width: 54,
+        height: 32,
+        thumbDiameter: 28,
+        inset: 2
+    )
+}
+
+struct AppToggle: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @Binding var isOn: Bool
+    let accessibilityLabel: String
+    let size: AppToggleSize
+
+    init(
+        isOn: Binding<Bool>,
+        accessibilityLabel: String,
+        size: AppToggleSize = .standard
+    ) {
+        _isOn = isOn
+        self.accessibilityLabel = accessibilityLabel
+        self.size = size
+    }
+
+    var body: some View {
+        Button {
+            toggle()
+        } label: {
+            ZStack(alignment: isOn ? .trailing : .leading) {
+                Capsule()
+                    .fill(isOn ? AppTheme.primaryBlue : Color(hex: "E2E8F0"))
+                    .frame(width: size.width, height: size.height)
+
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: size.thumbDiameter, height: size.thumbDiameter)
+                    .shadow(color: Color(hex: "0F172A").opacity(0.16), radius: 3, x: 0, y: 1)
+                    .padding(size.inset)
+            }
+            .frame(width: size.width, height: size.height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(isOn ? LocalizedStrings.toggleOn : LocalizedStrings.toggleOff)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func toggle() {
+        let animation = reduceMotion
+            ? Animation.easeOut(duration: 0.12)
+            : Animation.spring(response: 0.25, dampingFraction: 0.85)
+
+        withAnimation(animation) {
+            isOn.toggle()
+        }
+    }
+}
+
+
+struct PremiumBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+                .font(AppTypography.tinyBold)
+
+            Text(LocalizedStrings.premiumBadgeTitle)
+                .font(AppTypography.compactSemibold)
+        }
+        .foregroundStyle(AppTheme.primaryBlue)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(AppTheme.background)
+        .clipShape(Capsule())
+    }
+}
+
+struct PremiumLockedFeatureMessage: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(AppTypography.buttonText)
+                .foregroundStyle(AppTheme.primaryBlue)
+                .frame(width: 22, height: 22)
+
+            Text(message)
+                .font(AppTypography.compactMedium)
+                .foregroundStyle(Color(hex: "64748B"))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "F6F9FE"))
+        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+    }
+}
+
 struct SettingsGoalOptionCard: View {
     let goal: FocusGoal
     let isSelected: Bool

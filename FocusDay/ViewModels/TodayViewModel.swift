@@ -68,6 +68,11 @@ final class TodayViewModel: ObservableObject {
                 calendar: calendar,
                 referenceDate: referenceDate
             )
+            try DailyFocusService.clearExpiredCompletedMainTaskDisplayIfNeeded(
+                modelContext: modelContext,
+                calendar: calendar,
+                referenceDate: referenceDate
+            )
 
             let summaryDescriptor = FetchDescriptor<DailySummary>(
                 sortBy: [SortDescriptor(\DailySummary.date, order: .reverse)]
@@ -101,6 +106,11 @@ final class TodayViewModel: ObservableObject {
             selectedMood = dailyState?.mood ?? .calm
             selectedEnergyLevel = dailyState?.energyLevel ?? .medium
             refreshMainTaskFromState()
+            WidgetSnapshotService.refresh(
+                modelContext: modelContext,
+                calendar: calendar,
+                referenceDate: referenceDate
+            )
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -161,7 +171,9 @@ final class TodayViewModel: ObservableObject {
         let shouldCheckStreakCelebration = task.isCompleted == false
         let streakCelebration = shouldCheckStreakCelebration ? makeStreakCelebrationIfNeeded() : nil
 
-        task.isCompleted.toggle()
+        let isNowCompleted = task.isCompleted == false
+        task.isCompleted = isNowCompleted
+        task.completedAt = isNowCompleted ? Date() : nil
 
         let didSave = saveContext()
         loadToday()
@@ -192,36 +204,10 @@ final class TodayViewModel: ObservableObject {
     }
 
     private func suggestedMainTask() -> TaskItem? {
-        let unfinishedTasks = tasks.filter { $0.isCompleted == false }
-        guard unfinishedTasks.isEmpty == false else { return nil }
-
-        switch selectedEnergyLevel {
-        case .low:
-            let meaningfulShortTasks = unfinishedTasks.filter { $0.priority != .low }
-            let pool = meaningfulShortTasks.isEmpty ? unfinishedTasks : meaningfulShortTasks
-            return pool.sorted { firstTask, secondTask in
-                if firstTask.estimatedMinutes == secondTask.estimatedMinutes {
-                    return firstTask.priority.rank > secondTask.priority.rank
-                }
-                return firstTask.estimatedMinutes < secondTask.estimatedMinutes
-            }.first
-
-        case .medium:
-            return unfinishedTasks.sorted { firstTask, secondTask in
-                if firstTask.priority.rank == secondTask.priority.rank {
-                    return firstTask.estimatedMinutes < secondTask.estimatedMinutes
-                }
-                return firstTask.priority.rank > secondTask.priority.rank
-            }.first
-
-        case .high:
-            return unfinishedTasks.sorted { firstTask, secondTask in
-                if firstTask.priority.rank == secondTask.priority.rank {
-                    return firstTask.estimatedMinutes > secondTask.estimatedMinutes
-                }
-                return firstTask.priority.rank > secondTask.priority.rank
-            }.first
-        }
+        MainTaskRecommendationService.recommendedTask(
+            from: tasks,
+            energyLevel: selectedEnergyLevel
+        )
     }
 
     private func refreshMainTaskFromState() {
@@ -373,6 +359,7 @@ final class TodayViewModel: ObservableObject {
 
         do {
             try modelContext.save()
+            WidgetSnapshotService.refresh(modelContext: modelContext, calendar: calendar)
             return true
         } catch {
             statusMessage = error.localizedDescription

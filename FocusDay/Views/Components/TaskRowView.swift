@@ -90,6 +90,7 @@ struct TaskRowView: View {
             HStack(spacing: 10) {
                 categoryMetadata
                 durationMetadata
+                repeatIndicator
                 mainTaskIndicator
             }
 
@@ -98,6 +99,7 @@ struct TaskRowView: View {
 
                 HStack(spacing: 10) {
                     durationMetadata
+                    repeatIndicator
                     mainTaskIndicator
                 }
             }
@@ -114,6 +116,14 @@ struct TaskRowView: View {
 
     private var durationMetadata: some View {
         Label(LocalizedStrings.minutes(task.estimatedMinutes), systemImage: "clock")
+    }
+
+    @ViewBuilder
+    private var repeatIndicator: some View {
+        if task.isRepeating {
+            Label(LocalizedStrings.repeatingTask, systemImage: "arrow.triangle.2.circlepath")
+                .foregroundStyle(AppTheme.primaryBlue)
+        }
     }
 
     @ViewBuilder

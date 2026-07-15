@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var premiumAccess = PremiumAccessManager.shared
     @StateObject private var viewModel: SettingsViewModel
     @State private var activeReminderPicker: SettingsReminderPicker?
     @FocusState private var isNameFocused: Bool
@@ -27,6 +28,7 @@ struct SettingsView: View {
                     profileCard
                     goalSection
                     notificationCard
+                    testPlanCard
 
                     if let saveErrorMessage = viewModel.saveErrorMessage {
                         Text(saveErrorMessage)
@@ -146,9 +148,10 @@ struct SettingsView: View {
 
                 Spacer(minLength: 8)
 
-                Toggle("", isOn: $viewModel.areNotificationsEnabled)
-                    .labelsHidden()
-                    .tint(AppTheme.primaryBlue)
+                AppToggle(
+                    isOn: $viewModel.areNotificationsEnabled,
+                    accessibilityLabel: LocalizedStrings.notifications
+                )
             }
 
             VStack(spacing: 0) {
@@ -178,6 +181,33 @@ struct SettingsView: View {
             }
             .opacity(viewModel.areNotificationsEnabled ? 1 : 0.48)
             .disabled(viewModel.areNotificationsEnabled == false)
+        }
+    }
+
+    private var testPlanCard: some View {
+        SettingsSurfaceCard {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 8) {
+                    Text(LocalizedStrings.testPlanTitle)
+                        .font(AppTypography.sectionTitle)
+                        .foregroundStyle(AppTheme.text)
+
+                    PremiumBadge()
+                }
+
+                Text(LocalizedStrings.testPlanSubtitle)
+                    .font(AppTypography.screenSubtitle)
+                    .foregroundStyle(Color(hex: "64748B"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            UserPlanSegmentedControl(
+                selectedPlan: premiumAccess.currentPlan
+            ) { plan in
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    premiumAccess.setPlan(plan)
+                }
+            }
         }
     }
 
@@ -310,6 +340,54 @@ struct SettingsView: View {
         title: LocalizedStrings.eveningReminderTitle,
         initialHour: 20
     )
+}
+
+private struct UserPlanSegmentedControl: View {
+    let selectedPlan: UserPlan
+    let onSelect: (UserPlan) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(UserPlan.allCases) { plan in
+                Button {
+                    onSelect(plan)
+                } label: {
+                    HStack(spacing: 6) {
+                        if plan == .premium {
+                            Image(systemName: "crown.fill")
+                                .font(AppTypography.tinyBold)
+                        }
+
+                        Text(plan.title)
+                            .font(AppTypography.buttonText)
+                    }
+                    .foregroundStyle(selectedPlan == plan ? Color.white : color(for: plan))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 42)
+                    .background(selectedPlan == plan ? color(for: plan) : Color.white)
+                    .clipShape(Capsule())
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Color.white)
+        .clipShape(Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color(hex: "D8E8FF"), lineWidth: 1)
+        }
+    }
+
+    private func color(for plan: UserPlan) -> Color {
+        switch plan {
+        case .free:
+            Color(hex: "64748B")
+        case .premium:
+            AppTheme.primaryBlue
+        }
+    }
 }
 
 private enum SettingsPreviewFactory {

@@ -129,9 +129,10 @@ struct OnboardingView: View {
 
                 Spacer(minLength: 8)
 
-                Toggle("", isOn: $viewModel.areNotificationsEnabled)
-                    .labelsHidden()
-                    .tint(AppTheme.primaryBlue)
+                AppToggle(
+                    isOn: $viewModel.areNotificationsEnabled,
+                    accessibilityLabel: LocalizedStrings.notifications
+                )
             }
 
             VStack(spacing: 0) {

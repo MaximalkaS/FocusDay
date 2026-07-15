@@ -21,27 +21,10 @@ struct FocusDayApp: App {
     }
 
     private static func makeModelContainer() -> ModelContainer? {
-        let schema = Schema([
-            TaskItem.self,
-            DailyState.self,
-            DailySummary.self
-        ])
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
         do {
-            return try ModelContainer(for: schema, configurations: [configuration])
+            return try FocusDayModelContainerFactory.makeModelContainer()
         } catch {
-            return makeFallbackModelContainer(schema: schema)
-        }
-    }
-
-    private static func makeFallbackModelContainer(schema: Schema) -> ModelContainer? {
-        let fallbackConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [fallbackConfiguration])
-        } catch {
-            return nil
+            return try? FocusDayModelContainerFactory.makeInMemoryModelContainer()
         }
     }
 }

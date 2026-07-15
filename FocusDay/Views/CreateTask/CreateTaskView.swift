@@ -8,9 +8,13 @@ struct CreateTaskView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var premiumAccess = PremiumAccessManager.shared
     @StateObject private var viewModel: CreateTaskViewModel
+    @State private var isShowingPremiumPlaceholder = false
     @FocusState private var focusedField: FocusedField?
 
+    private let descriptionFieldsCardId = "descriptionFieldsCard"
     private let onSaved: () -> Void
 
     @MainActor
@@ -30,35 +34,45 @@ struct CreateTaskView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    cancelButton
-                    header
-                    titleFields
-                    categoryCard
-                    priorityCard
-                    durationCard
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        cancelButton
+                        header
+                        titleFields
+                        categoryCard
+                        priorityCard
+                        durationCard
+                        repeatCard
 
-                    if let validationMessage = viewModel.validationMessage {
-                        Text(validationMessage)
-                            .font(AppTypography.validation)
-                            .foregroundStyle(AppTheme.danger)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if let validationMessage = viewModel.validationMessage {
+                            Text(validationMessage)
+                                .font(AppTypography.validation)
+                                .foregroundStyle(AppTheme.danger)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        saveButton
                     }
-
-                    saveButton
+                    .padding(.horizontal, 16)
+                    .padding(.top, 22)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: 720)
+                    .frame(maxWidth: .infinity)
+                    .dismissKeyboardOnBackgroundTap {
+                        focusedField = nil
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 22)
-                .padding(.bottom, 24)
-                .frame(maxWidth: 720)
-                .frame(maxWidth: .infinity)
-                .dismissKeyboardOnBackgroundTap {
-                    focusedField = nil
-                }
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+                .keyboardAwareTextEditorScroll(
+                    focusedField: focusedField,
+                    targetField: .description,
+                    text: viewModel.taskDescription,
+                    targetId: descriptionFieldsCardId,
+                    proxy: proxy
+                )
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
             .background(AppTheme.screenBackground.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
             .toolbar {
@@ -67,6 +81,16 @@ struct CreateTaskView: View {
                     Button(LocalizedStrings.done) {
                         focusedField = nil
                     }
+                }
+            }
+            .alert(LocalizedStrings.premiumFeatureTitle, isPresented: $isShowingPremiumPlaceholder) {
+                Button(LocalizedStrings.gotIt, role: .cancel) {}
+            } message: {
+                Text(LocalizedStrings.premiumFeatureMessage)
+            }
+            .onChange(of: premiumAccess.currentPlan) { _, _ in
+                if premiumAccess.canUseRepeatingTasks == false {
+                    viewModel.isRepeating = false
                 }
             }
         }
@@ -127,6 +151,7 @@ struct CreateTaskView: View {
                 placeholder: LocalizedStrings.taskDescriptionPlaceholder
             )
         }
+        .id(descriptionFieldsCardId)
     }
 
     private var categoryCard: some View {
@@ -191,11 +216,171 @@ struct CreateTaskView: View {
         }
     }
 
+    private var repeatCard: some View {
+        CreateTaskSurfaceCard(spacing: 16) {
+            repeatHeader
+
+            if premiumAccess.canUseRepeatingTasks == false {
+                PremiumLockedFeatureMessage(message: LocalizedStrings.repeatingTasksPremiumMessage)
+                    .transition(.opacity.combined(with: .offset(y: -4)))
+            } else if viewModel.isRepeating {
+                repeatSettings
+                    .transition(.opacity.combined(with: .offset(y: 8)))
+            } else {
+                RepeatInfoRow(
+                    systemImage: "calendar",
+                    text: LocalizedStrings.repeatOnceInfo,
+                    iconColor: Color(hex: "64748B")
+                )
+                .transition(.opacity.combined(with: .offset(y: -4)))
+            }
+        }
+        .animation(AppMotion.smooth(reduceMotion), value: viewModel.isRepeating)
+        .animation(AppMotion.smooth(reduceMotion), value: viewModel.selectedRepeatType)
+    }
+
+    private var repeatHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(AppTypography.titleIcon)
+                .foregroundStyle(AppTheme.primaryBlue)
+                .frame(width: 48, height: 48)
+                .background(AppTheme.background)
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(LocalizedStrings.repeatSectionTitle)
+                        .font(AppTypography.sectionTitleSemibold)
+                        .foregroundStyle(Color(hex: "0F172A"))
+
+                    if premiumAccess.canUseRepeatingTasks == false {
+                        PremiumBadge()
+                    }
+                }
+
+                Text(LocalizedStrings.repeatSectionSubtitle)
+                    .font(AppTypography.compactMedium)
+                    .foregroundStyle(Color(hex: "64748B"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            AppToggle(
+                isOn: repeatToggleBinding,
+                accessibilityLabel: LocalizedStrings.repeatToggleLabel
+            )
+        }
+    }
+
+    private var repeatToggleBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.isRepeating },
+            set: { newValue in
+                if newValue && premiumAccess.canUseRepeatingTasks == false {
+                    viewModel.isRepeating = false
+                    isShowingPremiumPlaceholder = true
+                } else {
+                    viewModel.isRepeating = newValue
+                }
+            }
+        )
+    }
+
+    private var repeatSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(LocalizedStrings.repeatHowTitle)
+                .font(AppTypography.sectionTitleSemibold)
+                .foregroundStyle(AppTheme.text)
+
+            TwoColumnSelectionGrid(items: TaskRepeatType.selectableCases) { repeatType in
+                repeatTypeButton(repeatType)
+            }
+
+            if viewModel.selectedRepeatType == .customDays {
+                customWeekdaysSection
+                    .transition(.opacity.combined(with: .offset(y: 8)))
+            }
+
+            RepeatInfoRow(
+                systemImage: viewModel.selectedRepeatType == .customDays ? "calendar.badge.clock" : "arrow.triangle.2.circlepath",
+                text: repeatSummaryText,
+                iconColor: AppTheme.primaryBlue
+            )
+        }
+    }
+
+    private func repeatTypeButton(_ repeatType: TaskRepeatType) -> some View {
+        SelectionTile(
+            title: repeatType.title,
+            systemImage: nil,
+            color: AppTheme.primaryBlue,
+            unselectedColor: Color(hex: "64748B"),
+            isSelected: repeatType == viewModel.selectedRepeatType,
+            selectedColor: AppTheme.primaryBlue,
+            selectedBackgroundColor: AppTheme.background
+        ) {
+            withAnimation(AppMotion.smooth(reduceMotion)) {
+                viewModel.selectedRepeatType = repeatType
+            }
+        }
+    }
+
+    private var customWeekdaysSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LocalizedStrings.repeatSelectDaysTitle)
+                .font(AppTypography.buttonText)
+                .foregroundStyle(AppTheme.text)
+
+            LazyVGrid(columns: repeatWeekdayColumns, spacing: 8) {
+                ForEach(RepeatWeekday.allCases.sorted()) { weekday in
+                    RepeatWeekdayChip(
+                        title: weekday.title,
+                        isSelected: viewModel.selectedRepeatWeekdays.contains(weekday)
+                    ) {
+                        withAnimation(AppMotion.quick(reduceMotion)) {
+                            viewModel.toggleRepeatWeekday(weekday)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var repeatWeekdayColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+    }
+
+    private var repeatSummaryText: String {
+        switch viewModel.selectedRepeatType {
+        case .none:
+            return LocalizedStrings.repeatOnceInfo
+        case .daily:
+            return LocalizedStrings.repeatDailyInfo
+        case .weekdays:
+            return LocalizedStrings.repeatWeekdaysInfo
+        case .weekly:
+            return LocalizedStrings.repeatWeeklyInfo
+        case .customDays:
+            let selectedDays = RepeatWeekday.allCases
+                .sorted()
+                .filter { viewModel.selectedRepeatWeekdays.contains($0) }
+                .map(\.title)
+
+            return selectedDays.isEmpty
+                ? LocalizedStrings.repeatSelectAtLeastOneDay
+                : LocalizedStrings.repeatCustomInfo(selectedDays)
+        }
+    }
+
     private var saveButton: some View {
         Button {
             focusedField = nil
 
-            if viewModel.saveTask(modelContext: modelContext) {
+            if viewModel.saveTask(
+                modelContext: modelContext,
+                canUseRepeatingTasks: premiumAccess.canUseRepeatingTasks
+            ) {
                 onSaved()
                 dismiss()
             }
@@ -223,6 +408,56 @@ struct CreateTaskView: View {
         .buttonStyle(.plain)
         .disabled(viewModel.canSave == false)
         .opacity(viewModel.canSave ? 1 : 0.55)
+    }
+}
+
+private struct RepeatInfoRow: View {
+    let systemImage: String
+    let text: String
+    let iconColor: Color
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(AppTypography.buttonText)
+                .foregroundStyle(iconColor)
+                .frame(width: 22, height: 22)
+
+            Text(text)
+                .font(AppTypography.compactMedium)
+                .foregroundStyle(Color(hex: "64748B"))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "F6F9FE"))
+        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
+    }
+}
+
+private struct RepeatWeekdayChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(AppTypography.compactSemibold)
+                .foregroundStyle(isSelected ? Color.white : Color(hex: "64748B"))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 36)
+                .background(isSelected ? AppTheme.primaryBlue : Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(isSelected ? AppTheme.primaryBlue : Color(hex: "D8E3F2"), lineWidth: 1.2)
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -265,81 +500,29 @@ private struct CreateTaskSectionTitle: View {
     }
 }
 
-private struct SelectionTile: View {
-    let title: String
-    let systemImage: String
-    let color: Color
-    var unselectedColor: Color?
-    let isSelected: Bool
-    var selectedColor: Color = AppTheme.primaryBlue
-    let action: () -> Void
-
-    private var currentColor: Color {
-        isSelected ? selectedColor : (unselectedColor ?? color)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 9) {
-                Image(systemName: systemImage)
-                    .font(AppTypography.sectionTitle)
-                    .foregroundStyle(currentColor)
-                    .frame(width: 24, height: 24)
-
-                Text(title)
-                    .font(AppTypography.choiceButtonText)
-                    .foregroundStyle(currentColor)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.82)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 54)
-            .padding(.horizontal, 8)
-            .background(isSelected ? selectedColor.opacity(0.08) : Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(isSelected ? selectedColor : Color(hex: "D8E3F2"), lineWidth: isSelected ? 1.6 : 1.2)
-            }
-        }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-    }
-}
-
 private struct TaskDescriptionEditor: View {
     @Binding var text: String
     var isFocused: FocusState<CreateTaskView.FocusedField?>.Binding
     let placeholder: String
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            TextEditor(text: $text)
-                .focused(isFocused, equals: .description)
-                .font(AppTypography.bodyMedium)
-                .foregroundStyle(AppTheme.text)
-                .tint(AppTheme.primaryBlue)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 13)
-                .scrollContentBackground(.hidden)
-
-            if text.isEmpty {
-                Text(placeholder)
-                    .font(AppTypography.bodyMedium)
-                    .foregroundStyle(Color(hex: "7A8599"))
-                    .padding(.horizontal, 17)
-                    .padding(.vertical, 18)
-                    .allowsHitTesting(false)
-            }
-        }
-        .frame(minHeight: 132)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(hex: "BBD6FF"), lineWidth: 1.2)
-        }
+        KeyboardAwareTextEditor(
+            text: $text,
+            focusedField: isFocused,
+            field: .description,
+            placeholder: placeholder,
+            font: AppTypography.bodyMedium,
+            placeholderColor: Color(hex: "7A8599"),
+            horizontalTextPadding: 11,
+            verticalTextPadding: 13,
+            placeholderHorizontalPadding: 17,
+            placeholderVerticalPadding: 18,
+            minHeight: 132,
+            backgroundColor: Color.white,
+            cornerRadius: 12,
+            borderColor: Color(hex: "BBD6FF"),
+            borderWidth: 1.2
+        )
     }
 }
 

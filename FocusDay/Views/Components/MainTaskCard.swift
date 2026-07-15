@@ -120,19 +120,41 @@ struct MainTaskCard: View {
                     Text(task.taskDescription)
                         .font(AppTypography.screenSubtitle)
                         .foregroundStyle(secondaryTextColor)
-                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                HStack(spacing: 12) {
-                    Label(task.category.title, systemImage: "folder")
-                    Label(LocalizedStrings.minutes(task.estimatedMinutes), systemImage: "clock")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        Label(task.category.title, systemImage: "folder")
+                        Label(LocalizedStrings.minutes(task.estimatedMinutes), systemImage: "clock")
+                        repeatIndicator(for: task)
+                    }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Label(task.category.title, systemImage: "folder")
+
+                        HStack(spacing: 12) {
+                            Label(LocalizedStrings.minutes(task.estimatedMinutes), systemImage: "clock")
+                            repeatIndicator(for: task)
+                        }
+                    }
                 }
                 .font(AppTypography.taskMetadata)
                 .foregroundStyle(secondaryTextColor)
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 3)
 
             Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func repeatIndicator(for task: TaskItem) -> some View {
+        if task.isRepeating {
+            Label(LocalizedStrings.repeatingTask, systemImage: "arrow.triangle.2.circlepath")
+                .foregroundStyle(AppTheme.primaryBlue)
         }
     }
 

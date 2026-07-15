@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 @MainActor
 final class SettingsViewModel: ObservableObject {
@@ -134,6 +135,7 @@ private struct ReminderTimeSnapshot: Equatable {
 }
 
 enum UserDefaultsKeys {
+    static let hasCompletedIntroOnboarding = "focusDay.hasCompletedIntroOnboarding"
     static let hasCompletedOnboarding = "focusDay.hasCompletedOnboarding"
     static let userName = "focusDay.userName"
     static let selectedGoal = "focusDay.selectedGoal"
@@ -141,4 +143,81 @@ enum UserDefaultsKeys {
     static let eveningReminderTime = "focusDay.eveningReminderTime"
     static let areNotificationsEnabled = "focusDay.areNotificationsEnabled"
     static let lastStreakCelebrationDay = "focusDay.lastStreakCelebrationDay"
+    static let userPlan = "focusDay.userPlan"
+}
+
+enum UserPlan: String, CaseIterable, Identifiable {
+    case free
+    case premium
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .free:
+            LocalizedStrings.freePlanTitle
+        case .premium:
+            LocalizedStrings.premiumPlanTitle
+        }
+    }
+}
+
+@MainActor
+final class PremiumAccessManager: ObservableObject {
+    static let shared = PremiumAccessManager()
+
+    @Published private(set) var currentPlan: UserPlan
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = FocusDayWidgetStorage.sharedDefaults()) {
+        self.defaults = defaults
+        let savedPlan = defaults.string(forKey: UserDefaultsKeys.userPlan)
+            ?? UserDefaults.standard.string(forKey: UserDefaultsKeys.userPlan)
+        currentPlan = savedPlan.flatMap(UserPlan.init(rawValue:)) ?? .free
+        defaults.set(currentPlan.rawValue, forKey: UserDefaultsKeys.userPlan)
+        UserDefaults.standard.set(currentPlan.rawValue, forKey: UserDefaultsKeys.userPlan)
+        FocusDayWidgetStorage.savePlan(currentPlan.rawValue)
+    }
+
+    var isPremium: Bool {
+        currentPlan == .premium
+    }
+
+    var canUseRepeatingTasks: Bool {
+        isPremium
+    }
+
+    var canViewThirtyDayHistory: Bool {
+        isPremium
+    }
+
+    var canViewAllTimeHistory: Bool {
+        isPremium
+    }
+
+    var canUseHistoryFilters: Bool {
+        isPremium
+    }
+
+    var canViewFullHistory: Bool {
+        canViewThirtyDayHistory && canViewAllTimeHistory
+    }
+
+    var canUseAdvancedStats: Bool {
+        isPremium
+    }
+
+    var canUseWidgets: Bool {
+        isPremium
+    }
+
+    func setPlan(_ plan: UserPlan) {
+        guard currentPlan != plan else { return }
+        currentPlan = plan
+        defaults.set(plan.rawValue, forKey: UserDefaultsKeys.userPlan)
+        UserDefaults.standard.set(plan.rawValue, forKey: UserDefaultsKeys.userPlan)
+        FocusDayWidgetStorage.savePlan(plan.rawValue)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
 }

@@ -161,7 +161,12 @@ struct ProgressView: View {
 
     private var taskRevision: [ProgressTaskRevision] {
         tasks.map {
-            ProgressTaskRevision(id: $0.id, date: $0.date, isCompleted: $0.isCompleted)
+            ProgressTaskRevision(
+                id: $0.id,
+                date: $0.date,
+                isCompleted: $0.isCompleted,
+                completedAt: $0.completedAt
+            )
         }
     }
 
@@ -213,6 +218,7 @@ private struct ProgressTaskRevision: Equatable {
     let id: UUID
     let date: Date
     let isCompleted: Bool
+    let completedAt: Date?
 }
 
 private struct ProgressSummaryRevision: Equatable {
@@ -752,9 +758,28 @@ private struct WeeklyCompletedTasksCard: View {
 
     var body: some View {
         ProgressSectionCard {
-            Text(LocalizedStrings.weeklyCompletedTasks)
-                .font(AppTypography.sectionTitleBold)
-                .foregroundStyle(AppTheme.text)
+            HStack(spacing: 12) {
+                Text(LocalizedStrings.weeklyCompletedTasks)
+                    .font(AppTypography.sectionTitleBold)
+                    .foregroundStyle(AppTheme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                NavigationLink {
+                    TaskHistoryView()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(LocalizedStrings.history)
+                            .font(AppTypography.buttonText)
+
+                        Image(systemName: "chevron.right")
+                            .font(AppTypography.tinyBold)
+                    }
+                    .foregroundStyle(AppTheme.primaryBlue)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 18) {
@@ -767,6 +792,7 @@ private struct WeeklyCompletedTasksCard: View {
                     details
                 }
             }
+            .padding(.bottom, 4)
         }
     }
 
@@ -860,6 +886,984 @@ private struct WeeklyCompletedTasksCard: View {
         .padding(.vertical, 8)
         .frame(minHeight: 50, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+
+private enum TaskHistoryPeriod: CaseIterable, Identifiable {
+    case today
+    case sevenDays
+    case thirtyDays
+    case allTime
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .today:
+            LocalizedStrings.historyTodayPeriod
+        case .sevenDays:
+            LocalizedStrings.historySevenDaysPeriod
+        case .thirtyDays:
+            LocalizedStrings.historyThirtyDaysPeriod
+        case .allTime:
+            LocalizedStrings.historyAllTimePeriod
+        }
+    }
+
+    var dayCount: Int? {
+        switch self {
+        case .today:
+            1
+        case .sevenDays:
+            7
+        case .thirtyDays:
+            30
+        case .allTime:
+            nil
+        }
+    }
+
+    var periodDescription: String {
+        switch self {
+        case .today:
+            return LocalizedStrings.historyForToday
+        case .sevenDays, .thirtyDays:
+            guard let dayCount else { return LocalizedStrings.historyForAllTime }
+            return "\(LocalizedStrings.historyForLast)\n\(LocalizedStrings.historyLastDays(dayCount))"
+        case .allTime:
+            return LocalizedStrings.historyForAllTime
+        }
+    }
+}
+
+private enum TaskHistoryPremiumAlert: Identifiable {
+    case thirtyDays
+    case allTime
+    case filters
+
+    var id: String {
+        switch self {
+        case .thirtyDays:
+            "thirtyDays"
+        case .allTime:
+            "allTime"
+        case .filters:
+            "filters"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .thirtyDays:
+            LocalizedStrings.thirtyDayHistoryPremiumMessage
+        case .allTime:
+            LocalizedStrings.allTimeHistoryPremiumMessage
+        case .filters:
+            LocalizedStrings.historyFiltersPremiumMessage
+        }
+    }
+}
+
+private struct TaskHistoryGroup: Identifiable {
+    let date: Date
+    let tasks: [TaskItem]
+
+    var id: Date { date }
+}
+
+private struct TaskHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var isSearchFocused: Bool
+    @ObservedObject private var premiumAccess = PremiumAccessManager.shared
+    @Query(sort: \TaskItem.date, order: .reverse) private var tasks: [TaskItem]
+    @State private var selectedPeriod: TaskHistoryPeriod = .sevenDays
+    @State private var searchText = ""
+    @State private var selectedCategory: TaskCategory?
+    @State private var selectedPriority: TaskPriority?
+    @State private var draftCategory: TaskCategory?
+    @State private var draftPriority: TaskPriority?
+    @State private var isShowingFiltersSheet = false
+    @State private var premiumAlertMessage = ""
+    @State private var isShowingPremiumAlert = false
+    @Namespace private var periodSelectionNamespace
+
+    private let calendar = Calendar.current
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                backButton
+                header
+                periodPicker
+                searchAndFilterControls
+                statisticCard
+
+                if periodTasks.isEmpty {
+                    emptyState(
+                        title: LocalizedStrings.noCompletedTasksTitle,
+                        subtitle: LocalizedStrings.noCompletedTasksSubtitle,
+                        systemImage: "calendar.badge.checkmark"
+                    )
+                } else if groupedTasks.isEmpty {
+                    emptyState(
+                        title: LocalizedStrings.noHistoryResultsTitle,
+                        subtitle: LocalizedStrings.noHistoryResultsSubtitle,
+                        systemImage: "magnifyingglass"
+                    )
+                } else {
+                    taskGroups
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+            .frame(maxWidth: 720)
+            .frame(maxWidth: .infinity)
+            .dismissKeyboardOnBackgroundTap {
+                isSearchFocused = false
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .tabBarContentPadding()
+        .background(AppTheme.screenBackground.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .alert(LocalizedStrings.premiumHistoryTitle, isPresented: $isShowingPremiumAlert) {
+            Button(LocalizedStrings.gotIt, role: .cancel) {}
+        } message: {
+            Text(premiumAlertMessage)
+        }
+        .sheet(isPresented: $isShowingFiltersSheet) {
+            TaskHistoryFiltersSheet(
+                selectedCategory: $draftCategory,
+                selectedPriority: $draftPriority,
+                onReset: resetDraftFilters,
+                onApply: applyDraftFilters
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color.clear)
+        }
+        .onAppear(perform: enforceAvailableAccess)
+        .onChange(of: premiumAccess.isPremium) { _, _ in
+            enforceAvailableAccess()
+        }
+    }
+
+    private var backButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.left")
+                    .font(AppTypography.sectionTitleSemibold)
+
+                Text(LocalizedStrings.back)
+                    .font(AppTypography.sectionTitleSemibold)
+            }
+            .foregroundStyle(AppTheme.primaryBlue)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(LocalizedStrings.taskHistoryTitle)
+                .font(AppTypography.screenTitle)
+                .foregroundStyle(Color(hex: "0F172A"))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(LocalizedStrings.taskHistorySubtitle)
+                .font(AppTypography.screenSubtitle)
+                .foregroundStyle(Color(hex: "64748B"))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var periodPicker: some View {
+        GeometryReader { geometry in
+            let segmentWidth = max((geometry.size.width - 8) / CGFloat(TaskHistoryPeriod.allCases.count), 82)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 0) {
+                    ForEach(TaskHistoryPeriod.allCases) { period in
+                        Button {
+                            selectPeriod(period)
+                        } label: {
+                            let isLocked = isPeriodLocked(period)
+                            let isSelected = selectedPeriod == period
+
+                            HStack(spacing: 5) {
+                                Text(period.title)
+                                    .font(AppTypography.buttonText)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.76)
+
+                                if isLocked {
+                                    Image(systemName: "lock.fill")
+                                        .font(AppTypography.tinyBold)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                            .foregroundStyle(periodTextColor(isSelected: isSelected, isLocked: isLocked))
+                            .frame(width: segmentWidth)
+                            .frame(minHeight: 42)
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(AppTheme.primaryBlue)
+                                        .matchedGeometryEffect(
+                                            id: "taskHistoryPeriodSelection",
+                                            in: periodSelectionNamespace
+                                        )
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(isPeriodLocked(period) ? lockedMessage(for: period) : "")
+                    }
+                }
+                .padding(4)
+                .frame(minWidth: geometry.size.width, alignment: .leading)
+            }
+            .scrollIndicators(.hidden)
+            .background(Color.white)
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color(hex: "D8E8FF"), lineWidth: 1)
+            }
+            .shadow(color: Color(hex: "94A3B8").opacity(0.14), radius: 14, x: 0, y: 8)
+        }
+        .frame(height: 50)
+    }
+
+    private var searchAndFilterControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                searchField
+                    .layoutPriority(1)
+
+                filtersButton
+            }
+
+            if hasActiveFilters {
+                activeFilterChips
+            }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(AppTypography.buttonText)
+                .foregroundStyle(Color(hex: "64748B"))
+
+            TextField(
+                "",
+                text: $searchText,
+                prompt: Text(LocalizedStrings.historySearchPlaceholder)
+                    .foregroundStyle(Color(hex: "64748B"))
+            )
+            .focused($isSearchFocused)
+            .font(AppTypography.bodyMedium)
+            .foregroundStyle(AppTheme.text)
+            .tint(AppTheme.primaryBlue)
+            .submitLabel(.search)
+
+            if searchText.isEmpty == false {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(AppTypography.buttonText)
+                        .foregroundStyle(Color(hex: "94A3B8"))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(LocalizedStrings.deleteTaskAction)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 50)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color(hex: "D8E8FF"), lineWidth: 1)
+        }
+        .shadow(color: Color(hex: "94A3B8").opacity(0.12), radius: 12, x: 0, y: 6)
+    }
+
+    private var filtersButton: some View {
+        Button {
+            openFilters()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(AppTypography.buttonText)
+
+                Text(LocalizedStrings.filters)
+                    .font(AppTypography.buttonText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+
+                if premiumAccess.canUseHistoryFilters == false {
+                    Image(systemName: "lock.fill")
+                        .font(AppTypography.tinyBold)
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(AppTheme.primaryBlue.opacity(premiumAccess.canUseHistoryFilters ? 1 : 0.62))
+            .padding(.horizontal, 14)
+            .frame(width: premiumAccess.canUseHistoryFilters ? 132 : 148)
+            .frame(minHeight: 50)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color(hex: "D8E8FF"), lineWidth: 1)
+            }
+            .shadow(color: Color(hex: "94A3B8").opacity(0.12), radius: 12, x: 0, y: 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var activeFilterChips: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                if let selectedCategory {
+                    TaskHistoryActiveFilterChip(title: selectedCategory.title) {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            self.selectedCategory = nil
+                        }
+                    }
+                }
+
+                if let selectedPriority {
+                    TaskHistoryActiveFilterChip(title: selectedPriority.title) {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            self.selectedPriority = nil
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var statisticCard: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("\(filteredTasks.count)")
+                    .font(AppTypography.streakCount)
+                    .foregroundStyle(AppTheme.primaryBlue)
+                    .monospacedDigit()
+
+                Text(LocalizedStrings.tasksCompletedLower)
+                    .font(AppTypography.sectionTitleSemibold)
+                    .foregroundStyle(AppTheme.text)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(LocalizedStrings.excellentWork)
+                    .font(AppTypography.compactMedium)
+                    .foregroundStyle(Color(hex: "64748B"))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(spacing: 8) {
+                Image(systemName: "calendar.badge.checkmark")
+                    .font(AppTypography.titleIcon)
+                    .foregroundStyle(AppTheme.primaryBlue)
+                    .frame(width: 54, height: 54)
+                    .background(AppTheme.background)
+                    .clipShape(Circle())
+
+                Text(statisticDescription)
+                    .font(AppTypography.compactSemibold)
+                    .foregroundStyle(Color(hex: "64748B"))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color(hex: "94A3B8").opacity(0.16), radius: 18, x: 0, y: 10)
+    }
+
+    private var taskGroups: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(groupedTasks) { group in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(title(for: group.date))
+                        .font(AppTypography.sectionTitleBold)
+                        .foregroundStyle(Color(hex: "0F172A"))
+                        .padding(.horizontal, 2)
+
+                    VStack(spacing: 10) {
+                        ForEach(group.tasks) { task in
+                            HistoryTaskCard(
+                                task: task,
+                                completionDate: completionDate(for: task)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func emptyState(title: String, subtitle: String, systemImage: String) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.background)
+                    .frame(width: 72, height: 72)
+
+                Circle()
+                    .fill(AppTheme.primaryBlue.opacity(0.18))
+                    .frame(width: 7, height: 7)
+                    .offset(x: -28, y: -24)
+
+                Circle()
+                    .fill(AppTheme.primaryBlue.opacity(0.15))
+                    .frame(width: 6, height: 6)
+                    .offset(x: 30, y: 22)
+
+                Image(systemName: systemImage)
+                    .font(AppTypography.notificationIcon)
+                    .foregroundStyle(AppTheme.primaryBlue)
+            }
+            .frame(width: 78, height: 78)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(AppTypography.sectionTitleSemibold)
+                    .foregroundStyle(Color(hex: "0F172A"))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(subtitle)
+                    .font(AppTypography.screenSubtitle)
+                    .foregroundStyle(Color(hex: "64748B"))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: Color(hex: "94A3B8").opacity(0.16), radius: 18, x: 0, y: 10)
+    }
+
+    private var completedTasks: [TaskItem] {
+        let now = Date()
+
+        return tasks
+            .filter { task in
+                guard task.isCompleted else { return false }
+                return completionDate(for: task) <= now
+            }
+            .sorted { completionDate(for: $0) > completionDate(for: $1) }
+    }
+
+    private var periodTasks: [TaskItem] {
+        let now = Date()
+
+        guard let dayCount = selectedPeriod.dayCount else {
+            return completedTasks
+        }
+
+        let todayStart = calendar.startOfDay(for: now)
+        let startDate = calendar.date(
+            byAdding: .day,
+            value: -(dayCount - 1),
+            to: todayStart
+        ) ?? todayStart
+
+        return completedTasks.filter { task in
+            let completion = completionDate(for: task)
+            return completion >= startDate && completion <= now
+        }
+    }
+
+    private var filteredTasks: [TaskItem] {
+        let query = normalizedSearchText
+        let canFilter = premiumAccess.canUseHistoryFilters
+
+        return periodTasks.filter { task in
+            let matchesSearch = query.isEmpty || taskMatchesSearch(task, query: query)
+            let matchesCategory = canFilter == false || selectedCategory == nil || task.category == selectedCategory
+            let matchesPriority = canFilter == false || selectedPriority == nil || task.priority == selectedPriority
+            return matchesSearch && matchesCategory && matchesPriority
+        }
+    }
+
+    private var groupedTasks: [TaskHistoryGroup] {
+        let grouped = Dictionary(grouping: filteredTasks) { task in
+            calendar.startOfDay(for: completionDate(for: task))
+        }
+
+        return grouped
+            .map { TaskHistoryGroup(date: $0.key, tasks: $0.value.sorted { completionDate(for: $0) > completionDate(for: $1) }) }
+            .sorted { $0.date > $1.date }
+    }
+
+    private var normalizedSearchText: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private var hasActiveFilters: Bool {
+        premiumAccess.canUseHistoryFilters && (selectedCategory != nil || selectedPriority != nil)
+    }
+
+    private var hasActiveSearchOrFilters: Bool {
+        normalizedSearchText.isEmpty == false || hasActiveFilters
+    }
+
+    private var statisticDescription: String {
+        hasActiveSearchOrFilters ? LocalizedStrings.historyFilteredResults : selectedPeriod.periodDescription
+    }
+
+    private func taskMatchesSearch(_ task: TaskItem, query: String) -> Bool {
+        task.title.lowercased().contains(query)
+        || task.taskDescription.lowercased().contains(query)
+        || task.category.title.lowercased().contains(query)
+    }
+
+    private func completionDate(for task: TaskItem) -> Date {
+        task.completedAt ?? task.date
+    }
+
+    private func selectPeriod(_ period: TaskHistoryPeriod) {
+        if isPeriodLocked(period) {
+            showPremiumAlert(for: period)
+            return
+        }
+
+        guard selectedPeriod != period else { return }
+        withAnimation(.easeInOut(duration: 0.24)) {
+            selectedPeriod = period
+        }
+    }
+
+    private func openFilters() {
+        guard premiumAccess.canUseHistoryFilters else {
+            showPremiumAlert(.filters)
+            return
+        }
+
+        draftCategory = selectedCategory
+        draftPriority = selectedPriority
+        isShowingFiltersSheet = true
+    }
+
+    private func showPremiumAlert(for period: TaskHistoryPeriod) {
+        guard let alert = premiumAlertKind(for: period) else { return }
+        showPremiumAlert(alert)
+    }
+
+    private func showPremiumAlert(_ alert: TaskHistoryPremiumAlert) {
+        premiumAlertMessage = alert.message
+        isShowingPremiumAlert = true
+    }
+
+    private func resetDraftFilters() {
+        draftCategory = nil
+        draftPriority = nil
+    }
+
+    private func applyDraftFilters() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            selectedCategory = draftCategory
+            selectedPriority = draftPriority
+        }
+        isShowingFiltersSheet = false
+    }
+
+    private func enforceAvailableAccess() {
+        if selectedPeriod == .thirtyDays, premiumAccess.canViewThirtyDayHistory == false {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                selectedPeriod = .sevenDays
+            }
+        }
+
+        if selectedPeriod == .allTime, premiumAccess.canViewAllTimeHistory == false {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                selectedPeriod = .sevenDays
+            }
+        }
+
+        if premiumAccess.canUseHistoryFilters == false {
+            selectedCategory = nil
+            selectedPriority = nil
+            draftCategory = nil
+            draftPriority = nil
+            isShowingFiltersSheet = false
+        }
+    }
+
+    private func isPeriodLocked(_ period: TaskHistoryPeriod) -> Bool {
+        switch period {
+        case .today, .sevenDays:
+            false
+        case .thirtyDays:
+            premiumAccess.canViewThirtyDayHistory == false
+        case .allTime:
+            premiumAccess.canViewAllTimeHistory == false
+        }
+    }
+
+    private func premiumAlertKind(for period: TaskHistoryPeriod) -> TaskHistoryPremiumAlert? {
+        switch period {
+        case .today, .sevenDays:
+            nil
+        case .thirtyDays:
+            .thirtyDays
+        case .allTime:
+            .allTime
+        }
+    }
+
+    private func lockedMessage(for period: TaskHistoryPeriod) -> String {
+        premiumAlertKind(for: period)?.message ?? ""
+    }
+
+    private func periodTextColor(isSelected: Bool, isLocked: Bool) -> Color {
+        if isSelected {
+            return Color.white
+        }
+
+        return isLocked ? AppTheme.primaryBlue.opacity(0.58) : AppTheme.primaryBlue
+    }
+
+    private func title(for date: Date) -> String {
+        if calendar.isDateInToday(date) {
+            return LocalizedStrings.today
+        }
+
+        if calendar.isDateInYesterday(date) {
+            return LocalizedStrings.yesterday
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = LocalizedStrings.dateLocale
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: date)
+    }
+}
+
+private struct TaskHistoryActiveFilterChip: View {
+    let title: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        Button(action: onRemove) {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(AppTypography.compactSemibold)
+                    .lineLimit(1)
+
+                Image(systemName: "xmark")
+                    .font(AppTypography.tinyBold)
+            }
+            .foregroundStyle(AppTheme.primaryBlue)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(AppTheme.background)
+            .clipShape(Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(AppTheme.primaryBlue.opacity(0.18), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct TaskHistoryFiltersSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selectedCategory: TaskCategory?
+    @Binding var selectedPriority: TaskPriority?
+    let onReset: () -> Void
+    let onApply: () -> Void
+
+    private let categories: [TaskCategory?] = [nil, .study, .work, .sport, .habits, .personal]
+    private let priorities: [TaskPriority?] = [nil, .low, .medium, .high]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color(hex: "CBD5E1"))
+                .frame(width: 42, height: 5)
+                .padding(.top, 10)
+                .padding(.bottom, 18)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    categorySection
+                    prioritySection
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .scrollIndicators(.hidden)
+
+            actions
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+                .background(Color.white)
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(LocalizedStrings.filters)
+                .font(AppTypography.screenTitle)
+                .foregroundStyle(Color(hex: "0F172A"))
+
+            Text(LocalizedStrings.filtersSubtitle)
+                .font(AppTypography.screenSubtitle)
+                .foregroundStyle(Color(hex: "64748B"))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var categorySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(LocalizedStrings.category)
+                .font(AppTypography.sectionTitleBold)
+                .foregroundStyle(AppTheme.text)
+
+            TwoColumnSelectionGrid(items: categories) { category in
+                SelectionTile(
+                    title: category?.title ?? LocalizedStrings.all,
+                    systemImage: category?.historySymbolName ?? "square.grid.2x2",
+                    color: category?.filterColor ?? AppTheme.primaryBlue,
+                    unselectedColor: category?.filterColor ?? AppTheme.primaryBlue,
+                    isSelected: selectedCategory == category,
+                    selectedColor: category?.filterColor ?? AppTheme.primaryBlue,
+                    selectedBorderColor: category?.filterColor ?? AppTheme.primaryBlue,
+                    selectedBackgroundColor: (category?.filterColor ?? AppTheme.primaryBlue).opacity(0.1)
+                ) {
+                    selectedCategory = category
+                }
+            }
+        }
+    }
+
+    private var prioritySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(LocalizedStrings.priority)
+                .font(AppTypography.sectionTitleBold)
+                .foregroundStyle(AppTheme.text)
+
+            TwoColumnSelectionGrid(items: priorities) { priority in
+                SelectionTile(
+                    title: priority?.title ?? LocalizedStrings.all,
+                    systemImage: priority?.historyFilterIcon ?? "line.3.horizontal.decrease.circle",
+                    color: priority?.displayColor ?? AppTheme.primaryBlue,
+                    unselectedColor: priority?.displayColor ?? AppTheme.primaryBlue,
+                    isSelected: selectedPriority == priority,
+                    selectedColor: priority?.displayColor ?? AppTheme.primaryBlue,
+                    selectedBorderColor: priority?.displayColor ?? AppTheme.primaryBlue,
+                    selectedBackgroundColor: (priority?.displayColor ?? AppTheme.primaryBlue).opacity(0.1)
+                ) {
+                    selectedPriority = priority
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 12) {
+            Button {
+                onReset()
+            } label: {
+                Text(LocalizedStrings.resetFilters)
+                    .font(AppTypography.primaryButton)
+                    .foregroundStyle(AppTheme.primaryBlue)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 50)
+                    .background(AppTheme.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                onApply()
+            } label: {
+                Text(LocalizedStrings.applyFilters)
+                    .font(AppTypography.primaryButton)
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 50)
+                    .background(AppTheme.primaryBlue)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+private struct HistoryTaskCard: View {
+    let task: TaskItem
+    let completionDate: Date
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark")
+                .font(AppTypography.sectionTitleBold)
+                .foregroundStyle(AppTheme.primaryBlue)
+                .frame(width: 44, height: 44)
+                .background(AppTheme.background)
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(task.title)
+                    .font(AppTypography.sectionTitleSemibold)
+                    .foregroundStyle(Color(hex: "0F172A"))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if task.taskDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    Text(task.taskDescription)
+                        .font(AppTypography.compactMedium)
+                        .foregroundStyle(Color(hex: "64748B"))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                metadata
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+        }
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: Color(hex: "94A3B8").opacity(0.1), radius: 12, x: 0, y: 6)
+    }
+
+    private var metadata: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 7) {
+                categoryMetadata
+                separator
+                priorityMetadata
+                separator
+                timeMetadata
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                categoryMetadata
+
+                HStack(spacing: 7) {
+                    priorityMetadata
+                    separator
+                    timeMetadata
+                }
+            }
+        }
+        .font(AppTypography.taskMetadata)
+        .foregroundStyle(Color(hex: "64748B"))
+        .multilineTextAlignment(.leading)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var categoryMetadata: some View {
+        Label(task.category.title, systemImage: task.category.historySymbolName)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var priorityMetadata: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(task.priority.displayColor)
+                .frame(width: 6, height: 6)
+
+            Text(task.priority.title)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var timeMetadata: some View {
+        Label(completionTimeText, systemImage: "clock")
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var separator: some View {
+        Text("·")
+            .foregroundStyle(Color(hex: "94A3B8"))
+    }
+
+    private var completionTimeText: String {
+        let formatter = DateFormatter()
+        formatter.locale = LocalizedStrings.dateLocale
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: completionDate)
+    }
+}
+
+private extension TaskCategory {
+    var historySymbolName: String {
+        switch self {
+        case .study:
+            "book.closed"
+        case .sport:
+            "figure.run"
+        case .work:
+            "briefcase"
+        case .habits:
+            "repeat"
+        case .personal:
+            "person"
+        }
+    }
+
+    var filterColor: Color {
+        switch self {
+        case .study:
+            AppTheme.primaryBlue
+        case .sport:
+            Color(hex: "22C55E")
+        case .work:
+            AppTheme.purple
+        case .habits:
+            Color(hex: "FF8A00")
+        case .personal:
+            Color(hex: "14B8C4")
+        }
+    }
+}
+
+private extension TaskPriority {
+    var historyFilterIcon: String {
+        switch self {
+        case .low:
+            "arrow.down.circle.fill"
+        case .medium:
+            "minus.circle.fill"
+        case .high:
+            "arrow.up.right.circle.fill"
+        }
     }
 }
 

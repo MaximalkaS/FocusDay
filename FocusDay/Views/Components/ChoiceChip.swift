@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ChoiceChip: View {
     let title: String
@@ -17,6 +18,7 @@ struct ChoiceChip: View {
         self.isSelected = isSelected
         self.action = action
     }
+
 
     var body: some View {
         Button(action: action) {
@@ -86,6 +88,211 @@ struct TwoColumnSelectionGrid<Item: Hashable, Content: View>: View {
                 }
             }
         }
+    }
+}
+
+struct SelectionTile: View {
+    let title: String
+    let systemImage: String?
+    let color: Color
+    var unselectedColor: Color?
+    let isSelected: Bool
+    var selectedColor: Color = AppTheme.primaryBlue
+    var unselectedBorderColor: Color = Color(hex: "D8E3F2")
+    var selectedBorderColor: Color?
+    var selectedBackgroundColor: Color?
+    var selectedBackgroundOpacity: Double = 0.08
+    let action: () -> Void
+
+    private var currentColor: Color {
+        isSelected ? selectedColor : (unselectedColor ?? color)
+    }
+
+    private var selectedFillColor: Color {
+        selectedBackgroundColor ?? selectedColor.opacity(selectedBackgroundOpacity)
+    }
+
+    private var selectedStrokeColor: Color {
+        selectedBorderColor ?? selectedColor
+    }
+
+    init(
+        title: String,
+        systemImage: String? = nil,
+        color: Color,
+        unselectedColor: Color? = nil,
+        isSelected: Bool,
+        selectedColor: Color = AppTheme.primaryBlue,
+        unselectedBorderColor: Color = Color(hex: "D8E3F2"),
+        selectedBorderColor: Color? = nil,
+        selectedBackgroundColor: Color? = nil,
+        selectedBackgroundOpacity: Double = 0.08,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
+        self.unselectedColor = unselectedColor
+        self.isSelected = isSelected
+        self.selectedColor = selectedColor
+        self.unselectedBorderColor = unselectedBorderColor
+        self.selectedBorderColor = selectedBorderColor
+        self.selectedBackgroundColor = selectedBackgroundColor
+        self.selectedBackgroundOpacity = selectedBackgroundOpacity
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(AppTypography.sectionTitle)
+                        .foregroundStyle(currentColor)
+                        .frame(width: 24, height: 24)
+                }
+
+                Text(title)
+                    .font(AppTypography.choiceButtonText)
+                    .foregroundStyle(currentColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 54)
+            .padding(.horizontal, 8)
+            .background(isSelected ? selectedFillColor : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(isSelected ? selectedStrokeColor : unselectedBorderColor, lineWidth: isSelected ? 1.6 : 1.2)
+            }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+    }
+}
+
+
+struct KeyboardAwareTextEditor<Field: Hashable>: View {
+    @Binding var text: String
+    let focusedField: FocusState<Field?>.Binding
+    let field: Field
+    let placeholder: String
+    var font: Font = AppTypography.bodyMedium
+    var placeholderColor: Color = AppTheme.placeholderText
+    var textColor: Color = AppTheme.text
+    var tintColor: Color = AppTheme.primaryBlue
+    var horizontalTextPadding: CGFloat = 12
+    var verticalTextPadding: CGFloat = 12
+    var placeholderHorizontalPadding: CGFloat = 18
+    var placeholderVerticalPadding: CGFloat = 17
+    var minHeight: CGFloat = 120
+    var backgroundColor: Color = Color.white
+    var cornerRadius: CGFloat = 12
+    var borderColor: Color = Color(hex: "BBD6FF")
+    var borderWidth: CGFloat = 1.2
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $text)
+                .focused(focusedField, equals: field)
+                .font(font)
+                .foregroundStyle(textColor)
+                .tint(tintColor)
+                .padding(.horizontal, horizontalTextPadding)
+                .padding(.vertical, verticalTextPadding)
+                .scrollContentBackground(.hidden)
+
+            if text.isEmpty {
+                Text(placeholder)
+                    .font(font)
+                    .foregroundStyle(placeholderColor)
+                    .padding(.horizontal, placeholderHorizontalPadding)
+                    .padding(.vertical, placeholderVerticalPadding)
+                    .allowsHitTesting(false)
+            }
+        }
+        .frame(minHeight: minHeight)
+        .background(backgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(borderColor, lineWidth: borderWidth)
+        }
+    }
+}
+
+private struct KeyboardAwareTextEditorScrollModifier<Field: Equatable, TargetID: Hashable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let focusedField: Field?
+    let targetField: Field
+    let text: String
+    let targetId: TargetID
+    let proxy: ScrollViewProxy
+    let bottomSpacing: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .bottom) {
+                Color.clear
+                    .frame(height: bottomSpacing)
+                    .allowsHitTesting(false)
+            }
+            .onChange(of: focusedField) { _, newValue in
+                guard newValue == targetField else { return }
+                scrollToEditor(animated: true)
+            }
+            .onChange(of: text) { _, _ in
+                guard focusedField == targetField else { return }
+                scrollToEditor(animated: false)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                guard focusedField == targetField else { return }
+                scrollToEditor(animated: true)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { _ in
+                guard focusedField == targetField else { return }
+                scrollToEditor(animated: true)
+            }
+    }
+
+    private func scrollToEditor(animated: Bool) {
+        Task { @MainActor in
+            await Task.yield()
+
+            if animated, let animation = AppMotion.smooth(reduceMotion) {
+                withAnimation(animation) {
+                    proxy.scrollTo(targetId, anchor: .bottom)
+                }
+            } else {
+                proxy.scrollTo(targetId, anchor: .bottom)
+            }
+        }
+    }
+}
+
+extension View {
+    func keyboardAwareTextEditorScroll<Field: Equatable, TargetID: Hashable>(
+        focusedField: Field?,
+        targetField: Field,
+        text: String,
+        targetId: TargetID,
+        proxy: ScrollViewProxy,
+        bottomSpacing: CGFloat = 16
+    ) -> some View {
+        modifier(
+            KeyboardAwareTextEditorScrollModifier(
+                focusedField: focusedField,
+                targetField: targetField,
+                text: text,
+                targetId: targetId,
+                proxy: proxy,
+                bottomSpacing: bottomSpacing
+            )
+        )
     }
 }
 
