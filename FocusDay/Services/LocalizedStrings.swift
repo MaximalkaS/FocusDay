@@ -34,7 +34,7 @@ enum LocalizedStrings {
     static let today = text("Сегодня", "Today")
     static let progress = text("Прогресс", "Progress")
     static let settings = text("Настройки", "Settings")
-    static let eveningSummary = text("Вечерний итог", "Evening Summary")
+    static let eveningSummary = text("Завершение дня", "Day Completion")
     static let createTask = text("Новая задача", "New Task")
     static let editTask = text("Редактировать задачу", "Edit Task")
     static let todayTab = text("Сегодня", "Today")
@@ -44,7 +44,7 @@ enum LocalizedStrings {
     static let progressSubtitle = text("Следите за фокусом и своими результатами", "Track your focus and results")
     static let settingsSubtitle = text("Настройте приложение под себя", "Make the app fit your routine")
     static let createTaskSubtitle = text("Добавьте только то, что действительно важно", "Add only what truly matters")
-    static let eveningSummarySubtitle = text("Зафиксируйте результат и спокойно завершите день", "Record your result and end the day calmly")
+    static let eveningSummarySubtitle = text("Завершите сегодняшний день и сохраните его результаты", "Finish today and save its results")
     static let storageUnavailableTitle = text("Хранилище недоступно", "Storage Unavailable")
     static let storageUnavailableMessage = text(
         "Не удалось открыть локальные данные FocusDay. Перезапустите приложение или освободите место на устройстве.",
@@ -78,10 +78,10 @@ enum LocalizedStrings {
         "Выполняйте задачи, сохраняйте\nсерию и наблюдайте свой\nежедневный рост.",
         "Complete tasks, keep your\nstreak, and watch your\ndaily growth."
     )
-    static let onboardingIntroEveningTitle = text("Вечерний итог", "Evening Summary")
+    static let onboardingIntroEveningTitle = text("Завершение дня", "Day Completion")
     static let onboardingIntroEveningText = text(
-        "Каждый вечер анализируйте\nрезультаты и постепенно\nулучшайте свой день.",
-        "Review your results every\nevening and gradually\nimprove your day."
+        "Каждый вечер завершайте день,\nсохраняйте результаты и\nпостепенно улучшайте фокус.",
+        "Finish each day,\nsave your results, and\ngradually improve your focus."
     )
     static let onboardingIntroPremiumTitle = text("Получите больше\nвозможностей", "Get More\nPossibilities")
     static let onboardingIntroPremiumSubtitle = text(
@@ -117,7 +117,7 @@ enum LocalizedStrings {
     static let morningReminderTitle = text("Утреннее напоминание", "Morning Reminder")
     static let eveningReminderTitle = text("Вечернее напоминание", "Evening Reminder")
     static let morningReminderSubtitle = text("Выбрать главное дело дня", "Choose your main task")
-    static let eveningReminderSubtitle = text("Подвести итог дня", "Review your day")
+    static let eveningReminderSubtitle = text("Завершить день", "Finish your day")
 
     static let goalStudy = text("Учёба", "Study")
     static let goalSport = text("Спорт", "Sport")
@@ -157,7 +157,7 @@ enum LocalizedStrings {
     )
     static let addTask = text("Добавить задачу", "Add Task")
     static let taskProgress = text("Прогресс дня", "Day Progress")
-    static let goToEveningSummary = text("Перейти к итогу", "Go to Summary")
+    static let goToEveningSummary = text("Завершить день", "Finish Day")
     static let markCompleted = text("Отметить выполненной", "Mark as completed")
     static let markNotCompleted = text("Вернуть в работу", "Mark as active")
 
@@ -281,7 +281,7 @@ enum LocalizedStrings {
         "Could not enable notifications. Check notification permissions in iOS Settings."
     )
     static let morningNotificationBody = text("Выбери главное дело дня", "Choose your main task for the day")
-    static let eveningNotificationBody = text("Подведи короткий итог дня", "Write a short day summary")
+    static let eveningNotificationBody = text("Завершите день и сохраните результат", "Finish the day and save your result")
     static let selectedGoal = text("Выбранная цель", "Selected goal")
     static let saveChanges = text("Сохранить изменения", "Save Changes")
     static let testPlanTitle = text("Тестовый план", "Test Plan")

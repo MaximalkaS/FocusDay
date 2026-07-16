@@ -34,16 +34,6 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
 
-                    MoodSelectionCard(
-                        selectedMood: viewModel.selectedMood,
-                        onSelect: viewModel.updateMood
-                    )
-
-                    EnergySelectionCard(
-                        selectedEnergyLevel: viewModel.selectedEnergyLevel,
-                        onSelect: viewModel.updateEnergyLevel
-                    )
-
                     MainTaskCard(
                         task: viewModel.mainTask,
                         isActionMenuPresented: actionMenuBinding(for: viewModel.mainTask?.id),
@@ -74,8 +64,19 @@ struct TodayView: View {
                         }
                     )
 
-                    taskListCard
                     progressCard
+                    taskListCard
+
+                    MoodSelectionCard(
+                        selectedMood: viewModel.selectedMood,
+                        onSelect: viewModel.updateMood
+                    )
+
+                    EnergySelectionCard(
+                        selectedEnergyLevel: viewModel.selectedEnergyLevel,
+                        onSelect: viewModel.updateEnergyLevel
+                    )
+
                     eveningLink
                 }
                 .padding(.horizontal, 16)

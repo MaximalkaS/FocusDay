@@ -617,7 +617,7 @@ private extension DayInfluenceReason {
 }
 
 #if DEBUG
-#Preview("Вечерний итог: отлично") {
+#Preview("Завершение дня: отлично") {
     NavigationStack {
         EveningSummaryView(initialFeeling: .excellent)
     }
@@ -625,7 +625,7 @@ private extension DayInfluenceReason {
     .environmentObject(AppState())
 }
 
-#Preview("Вечерний итог: непросто") {
+#Preview("Завершение дня: непросто") {
     NavigationStack {
         EveningSummaryView(initialFeeling: .hard)
     }
@@ -633,7 +633,7 @@ private extension DayInfluenceReason {
     .environmentObject(AppState())
 }
 
-#Preview("Вечерний итог: перегруженно") {
+#Preview("Завершение дня: перегруженно") {
     NavigationStack {
         EveningSummaryView(
             initialFeeling: .overloaded,
@@ -644,7 +644,7 @@ private extension DayInfluenceReason {
     .environmentObject(AppState())
 }
 
-#Preview("Вечерний итог: без незавершённых") {
+#Preview("Завершение дня: без незавершённых") {
     NavigationStack {
         EveningSummaryView(
             initialFeeling: .calm,
@@ -655,7 +655,7 @@ private extension DayInfluenceReason {
     .environmentObject(AppState())
 }
 
-#Preview("Вечерний итог: есть незавершённые") {
+#Preview("Завершение дня: есть незавершённые") {
     NavigationStack {
         EveningSummaryView(
             initialFeeling: .hard,
