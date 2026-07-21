@@ -17,6 +17,8 @@ final class TaskItem: Identifiable {
     var repeatWeekdaysRawValue: String = ""
     var repeatStartDate: Date?
     var repeatSeriesId: UUID?
+    var scheduledDate: Date?
+    var repeatAnchorWeekdayRawValue: Int?
 
     var priority: TaskPriority {
         get { TaskPriority(rawValue: priorityRawValue) ?? .medium }
@@ -54,6 +56,11 @@ final class TaskItem: Identifiable {
         repeatSeriesId ?? id
     }
 
+    var repeatAnchorWeekday: RepeatWeekday? {
+        get { repeatAnchorWeekdayRawValue.flatMap(RepeatWeekday.init(rawValue:)) }
+        set { repeatAnchorWeekdayRawValue = newValue?.rawValue }
+    }
+
     init(
         id: UUID = UUID(),
         title: String,
@@ -68,7 +75,9 @@ final class TaskItem: Identifiable {
         repeatType: TaskRepeatType = .none,
         repeatWeekdays: [RepeatWeekday] = [],
         repeatStartDate: Date? = nil,
-        repeatSeriesId: UUID? = nil
+        repeatSeriesId: UUID? = nil,
+        scheduledDate: Date? = nil,
+        repeatAnchorWeekday: RepeatWeekday? = nil
     ) {
         self.id = id
         self.title = title
@@ -87,47 +96,126 @@ final class TaskItem: Identifiable {
             .joined(separator: ",")
         self.repeatStartDate = repeatStartDate
         self.repeatSeriesId = repeatSeriesId
+        self.scheduledDate = scheduledDate
+        self.repeatAnchorWeekdayRawValue = repeatAnchorWeekday?.rawValue
     }
 
-    func nextRepeatDate(after date: Date, calendar: Calendar = .current) -> Date? {
-        guard isRepeating, repeatType != .none else { return nil }
+    func clearRecurrenceMetadata() {
+        isRepeating = false
+        repeatTypeRawValue = TaskRepeatType.none.rawValue
+        repeatWeekdaysRawValue = ""
+        repeatStartDate = nil
+        repeatSeriesId = nil
+        scheduledDate = nil
+        repeatAnchorWeekdayRawValue = nil
+    }
 
-        let startDay = calendar.startOfDay(for: date)
+}
+
+@Model
+final class RecurringTaskSeries {
+    @Attribute(.unique) var id: UUID
+    var title: String
+    var taskDescription: String
+    var priorityRawValue: String
+    var estimatedMinutes: Int
+    var categoryRawValue: String
+    var repeatTypeRawValue: String
+    var repeatWeekdaysRawValue: String
+    var startDate: Date
+    var anchorWeekdayRawValue: Int?
+    var lastGeneratedDate: Date
+    var isEnabled: Bool = true
+
+    var priority: TaskPriority {
+        get { TaskPriority(rawValue: priorityRawValue) ?? .medium }
+        set { priorityRawValue = newValue.rawValue }
+    }
+
+    var category: TaskCategory {
+        get { TaskCategory(rawValue: categoryRawValue) ?? .personal }
+        set { categoryRawValue = newValue.rawValue }
+    }
+
+    var repeatType: TaskRepeatType {
+        get { TaskRepeatType(rawValue: repeatTypeRawValue) ?? .none }
+        set { repeatTypeRawValue = newValue.rawValue }
+    }
+
+    var repeatWeekdays: [RepeatWeekday] {
+        get {
+            repeatWeekdaysRawValue
+                .split(separator: ",")
+                .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                .compactMap(RepeatWeekday.init(rawValue:))
+                .uniqued()
+                .sorted()
+        }
+        set {
+            repeatWeekdaysRawValue = Array(Set(newValue))
+                .sorted()
+                .map { String($0.rawValue) }
+                .joined(separator: ",")
+        }
+    }
+
+    var anchorWeekday: RepeatWeekday? {
+        get { anchorWeekdayRawValue.flatMap(RepeatWeekday.init(rawValue:)) }
+        set { anchorWeekdayRawValue = newValue?.rawValue }
+    }
+
+    init(
+        id: UUID,
+        title: String,
+        taskDescription: String,
+        priority: TaskPriority,
+        estimatedMinutes: Int,
+        category: TaskCategory,
+        repeatType: TaskRepeatType,
+        repeatWeekdays: [RepeatWeekday],
+        startDate: Date,
+        anchorWeekday: RepeatWeekday?,
+        lastGeneratedDate: Date,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.title = title
+        self.taskDescription = taskDescription
+        self.priorityRawValue = priority.rawValue
+        self.estimatedMinutes = estimatedMinutes
+        self.categoryRawValue = category.rawValue
+        self.repeatTypeRawValue = repeatType.rawValue
+        self.repeatWeekdaysRawValue = Array(Set(repeatWeekdays))
+            .sorted()
+            .map { String($0.rawValue) }
+            .joined(separator: ",")
+        self.startDate = startDate
+        self.anchorWeekdayRawValue = anchorWeekday?.rawValue
+        self.lastGeneratedDate = lastGeneratedDate
+        self.isEnabled = isEnabled
+    }
+
+    func isScheduled(on date: Date, calendar: Calendar = .current) -> Bool {
+        let day = calendar.startOfDay(for: date)
+        guard isEnabled, repeatType != .none,
+              day >= calendar.startOfDay(for: startDate) else {
+            return false
+        }
 
         switch repeatType {
         case .none:
-            return nil
+            return false
         case .daily:
-            return calendar.date(byAdding: .day, value: 1, to: startDay)
+            return true
         case .weekdays:
-            return nextDate(after: startDay, matching: [.monday, .tuesday, .wednesday, .thursday, .friday], calendar: calendar)
+            return Set([RepeatWeekday.monday, .tuesday, .wednesday, .thursday, .friday])
+                .contains(RepeatWeekday.from(date: day, calendar: calendar))
         case .weekly:
-            let anchorDate = repeatStartDate ?? self.date
-            let weekday = RepeatWeekday.from(date: anchorDate, calendar: calendar)
-            return nextDate(after: startDay, matching: [weekday], calendar: calendar)
+            return RepeatWeekday.from(date: day, calendar: calendar)
+                == (anchorWeekday ?? RepeatWeekday.from(date: startDate, calendar: calendar))
         case .customDays:
-            let weekdays = repeatWeekdays
-            guard weekdays.isEmpty == false else { return nil }
-            return nextDate(after: startDay, matching: weekdays, calendar: calendar)
+            return Set(repeatWeekdays).contains(RepeatWeekday.from(date: day, calendar: calendar))
         }
-    }
-
-    private func nextDate(
-        after startDay: Date,
-        matching weekdays: [RepeatWeekday],
-        calendar: Calendar
-    ) -> Date? {
-        let weekdaySet = Set(weekdays)
-
-        for offset in 1...14 {
-            guard let candidate = calendar.date(byAdding: .day, value: offset, to: startDay) else { continue }
-            let candidateWeekday = RepeatWeekday.from(date: candidate, calendar: calendar)
-            if weekdaySet.contains(candidateWeekday) {
-                return candidate
-            }
-        }
-
-        return nil
     }
 }
 

@@ -63,11 +63,18 @@ enum DayTransitionService {
             calendar: calendar
         )
 
-        var didChange = rollForwardUnfinishedTasks(
+        var didChange = rollForwardUnfinishedOrdinaryTasks(
             tasks,
             to: todayStart,
             calendar: calendar
         )
+
+        let recurrenceResult = try RecurringTaskService.process(
+            modelContext: modelContext,
+            calendar: calendar,
+            referenceDate: referenceDate
+        )
+        didChange = recurrenceResult.didChange || didChange
 
         didChange = try clearOutdatedMainTaskSelections(
             tasks: tasks,
@@ -123,7 +130,7 @@ enum DayTransitionService {
         }
     }
 
-    private static func rollForwardUnfinishedTasks(
+    private static func rollForwardUnfinishedOrdinaryTasks(
         _ tasks: [TaskItem],
         to todayStart: Date,
         calendar: Calendar
@@ -132,7 +139,9 @@ enum DayTransitionService {
 
         for task in tasks {
             let taskDay = calendar.startOfDay(for: task.date)
-            guard taskDay < todayStart, task.isCompleted == false else {
+            guard taskDay < todayStart,
+                  task.isCompleted == false,
+                  task.isRepeating == false else {
                 continue
             }
 

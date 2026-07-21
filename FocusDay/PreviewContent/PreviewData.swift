@@ -96,6 +96,7 @@ enum PreviewData {
     private static func makeContainer(shouldSeed: Bool) -> ModelContainer {
         let schema = Schema([
             TaskItem.self,
+            RecurringTaskSeries.self,
             DailyState.self,
             DailySummary.self
         ])

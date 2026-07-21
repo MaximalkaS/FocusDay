@@ -92,6 +92,9 @@ struct ProgressView: View {
                 guard newPhase == .active else { return }
                 refreshMetrics()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .focusDayCalendarDayDidChange)) { _ in
+                refreshMetrics()
+            }
         }
     }
 

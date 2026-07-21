@@ -261,8 +261,8 @@ enum LocalizedStrings {
     static let finishDay = text("Завершить день", "Finish Day")
     static let dayCompleted = text("День завершён", "Day completed")
     static let supportiveMessage = text(
-        "Отлично. День зафиксирован, завтра будет легче начать.",
-        "Great. Your day is saved, and tomorrow will be easier to start."
+        "Отличная работа! Завтра продолжим двигаться к вашей цели.",
+        "Great work! Tomorrow, we will keep moving toward your goal."
     )
     static let savingProgress = text("Сохранение прогресса...", "Saving progress...")
     static let changesSaved = text("Изменения сохранены", "Changes saved")

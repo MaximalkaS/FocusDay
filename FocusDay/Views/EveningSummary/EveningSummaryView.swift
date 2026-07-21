@@ -18,6 +18,7 @@ struct EveningSummaryView: View {
     @State private var selectedReasons: Set<DayInfluenceReason> = []
     @State private var reflectionText = ""
     @State private var message: String?
+    @State private var isShowingCompletionOverlay = false
     @FocusState private var focusedField: FocusedField?
 
     private let onSaved: () -> Void
@@ -103,6 +104,15 @@ struct EveningSummaryView: View {
         .animation(.easeInOut(duration: reduceMotion ? 0.12 : 0.24), value: selectedFeeling)
         .task {
             loadTodayData()
+        }
+        .overlay {
+            if isShowingCompletionOverlay {
+                DayCompletionSuccessOverlay {
+                    isShowingCompletionOverlay = false
+                    dismiss()
+                }
+                .transition(.opacity)
+            }
         }
     }
 
@@ -293,6 +303,12 @@ struct EveningSummaryView: View {
 
     private func loadTodayData() {
         do {
+            try DayTransitionService.prepareForCurrentDay(
+                modelContext: modelContext,
+                calendar: calendar,
+                referenceDate: Date()
+            )
+
             let taskDescriptor = FetchDescriptor<TaskItem>(
                 sortBy: [SortDescriptor(\TaskItem.date, order: .reverse)]
             )
@@ -374,7 +390,6 @@ struct EveningSummaryView: View {
                 modelContext.insert(summary)
             }
 
-            try createNextRepeatingTaskCopies()
             moveUnfinishedTasksToTomorrow()
             dailyState?.mainTaskId = nil
 
@@ -382,51 +397,11 @@ struct EveningSummaryView: View {
             WidgetSnapshotService.refresh(modelContext: modelContext)
             message = nil
             onSaved()
-            dismiss()
-            appState.completeSaving(.eveningSummary)
+            appState.cancelFeedback()
+            isShowingCompletionOverlay = true
         } catch {
             appState.cancelFeedback()
             message = error.localizedDescription
-        }
-    }
-
-    private func createNextRepeatingTaskCopies() throws {
-        let todayStart = calendar.startOfDay(for: Date())
-        var allTasks = try modelContext.fetch(FetchDescriptor<TaskItem>())
-
-        for task in tasks where task.isCompleted && task.isRepeating {
-            guard let nextDate = task.nextRepeatDate(after: todayStart, calendar: calendar) else { continue }
-
-            let seriesId = task.repeatSeriesId ?? task.id
-            task.repeatSeriesId = seriesId
-            task.repeatStartDate = task.repeatStartDate ?? task.date
-
-            let alreadyHasNextTask = allTasks.contains { existingTask in
-                let existingSeriesId = existingTask.repeatSeriesId ?? (existingTask.isRepeating ? existingTask.id : nil)
-                return existingTask.id != task.id
-                    && existingSeriesId == seriesId
-                    && calendar.isDate(existingTask.date, inSameDayAs: nextDate)
-                    && existingTask.isCompleted == false
-            }
-
-            guard alreadyHasNextTask == false else { continue }
-
-            let nextTask = TaskItem(
-                title: task.title,
-                taskDescription: task.taskDescription,
-                date: nextDate,
-                priority: task.priority,
-                isCompleted: false,
-                estimatedMinutes: task.estimatedMinutes,
-                category: task.category,
-                isRepeating: true,
-                repeatType: task.repeatType,
-                repeatWeekdays: task.repeatWeekdays,
-                repeatStartDate: task.repeatStartDate ?? task.date,
-                repeatSeriesId: seriesId
-            )
-            modelContext.insert(nextTask)
-            allTasks.append(nextTask)
         }
     }
 
@@ -434,16 +409,105 @@ struct EveningSummaryView: View {
         let todayStart = calendar.startOfDay(for: Date())
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: todayStart) else { return }
 
-        for task in tasks where task.isCompleted == false {
-            if task.isRepeating,
-               let nextRepeatDate = task.nextRepeatDate(after: todayStart, calendar: calendar) {
-                task.repeatSeriesId = task.repeatSeriesId ?? task.id
-                task.repeatStartDate = task.repeatStartDate ?? task.date
-                task.date = nextRepeatDate
-            } else {
-                task.date = tomorrow
+        for task in tasks where task.isCompleted == false && task.isRepeating == false {
+            task.date = tomorrow
+        }
+    }
+}
+
+
+private struct DayCompletionSuccessOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isBackgroundVisible = false
+    @State private var isCardVisible = false
+    @State private var isDismissing = false
+
+    let onFinished: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .opacity(isBackgroundVisible ? 0.20 : 0)
+                .ignoresSafeArea()
+
+            card
+                .padding(.horizontal, 20)
+                .opacity(isCardVisible ? 1 : 0)
+                .scaleEffect(cardScale)
+        }
+        .zIndex(200)
+        .allowsHitTesting(true)
+        .task {
+            await runPresentation()
+        }
+    }
+
+    private var card: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 68, height: 68)
+                .background(AppTheme.success)
+                .clipShape(Circle())
+
+            VStack(spacing: 8) {
+                Text(LocalizedStrings.dayCompleted)
+                    .font(AppTypography.cardTitleLarge)
+                    .foregroundStyle(AppTheme.text)
+                    .multilineTextAlignment(.center)
+
+                Text(LocalizedStrings.supportiveMessage)
+                    .font(AppTypography.body)
+                    .foregroundStyle(Color(hex: "64748B"))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.horizontal, 26)
+        .padding(.vertical, 26)
+        .frame(maxWidth: 330)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: Color.black.opacity(0.16), radius: 24, x: 0, y: 14)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var cardScale: CGFloat {
+        guard reduceMotion == false else { return 1 }
+        if isCardVisible { return 1 }
+        return isDismissing ? 0.96 : 0.94
+    }
+
+    @MainActor
+    private func runPresentation() async {
+        withAnimation(.easeOut(duration: 0.22)) {
+            isBackgroundVisible = true
+        }
+        withAnimation(.easeOut(duration: reduceMotion ? 0.20 : 0.30)) {
+            isCardVisible = true
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: 2_250_000_000)
+        } catch {
+            return
+        }
+
+        withAnimation(.easeInOut(duration: reduceMotion ? 0.18 : 0.26)) {
+            isDismissing = true
+            isCardVisible = false
+            isBackgroundVisible = false
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: reduceMotion ? 180_000_000 : 260_000_000)
+        } catch {
+            return
+        }
+
+        guard Task.isCancelled == false else { return }
+        onFinished()
     }
 }
 

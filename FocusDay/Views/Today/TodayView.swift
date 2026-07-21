@@ -92,6 +92,9 @@ struct TodayView: View {
             .task {
                 viewModel.configure(modelContext: modelContext)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .focusDayCalendarDayDidChange)) { _ in
+                appState.taskDataDidChange()
+            }
             .onChange(of: appState.taskListRevision) { _, _ in
                 viewModel.loadToday()
             }

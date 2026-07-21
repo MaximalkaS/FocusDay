@@ -65,21 +65,45 @@ final class CreateTaskViewModel: ObservableObject {
             return false
         }
 
+        var recurringTaskToUpdate: TaskItem?
+
         if let taskToEdit {
             let calendar = Calendar.current
             let today = calendar.startOfDay(for: Date())
             let taskDay = calendar.startOfDay(for: taskToEdit.date)
+            let repeatSettingsChanged = taskToEdit.isRepeating != isRepeating
+                || taskToEdit.repeatType != (isRepeating ? selectedRepeatType : .none)
+                || Set(taskToEdit.repeatWeekdays) != selectedRepeatWeekdays
 
             taskToEdit.title = cleanedTitle
             taskToEdit.taskDescription = cleanedDescription
             taskToEdit.priority = selectedPriority
             taskToEdit.estimatedMinutes = selectedDuration
             taskToEdit.category = selectedCategory
-            applyRepeatSettings(to: taskToEdit)
+
+            if taskToEdit.isRepeating && isRepeating == false {
+                do {
+                    try RecurringTaskService.disableSeries(
+                        for: taskToEdit,
+                        modelContext: modelContext,
+                        calendar: calendar
+                    )
+                } catch {
+                    validationMessage = error.localizedDescription
+                    return false
+                }
+            }
+
+            applyRepeatSettings(
+                to: taskToEdit,
+                startDate: repeatSettingsChanged ? today : nil,
+                resetScheduleAnchor: repeatSettingsChanged
+            )
 
             if taskDay < today, taskToEdit.isCompleted == false {
                 taskToEdit.date = Date()
             }
+            recurringTaskToUpdate = taskToEdit.isRepeating ? taskToEdit : nil
         } else {
             let task = TaskItem(
                 title: cleanedTitle,
@@ -93,10 +117,18 @@ final class CreateTaskViewModel: ObservableObject {
             applyRepeatSettings(to: task, startDate: task.date)
 
             modelContext.insert(task)
+            recurringTaskToUpdate = task.isRepeating ? task : nil
         }
 
         do {
+            if let recurringTaskToUpdate {
+                try RecurringTaskService.updateSeries(
+                    from: recurringTaskToUpdate,
+                    modelContext: modelContext
+                )
+            }
             try modelContext.save()
+            try RecurringTaskService.process(modelContext: modelContext)
             WidgetSnapshotService.refresh(modelContext: modelContext)
             reset()
             return true
@@ -118,7 +150,11 @@ final class CreateTaskViewModel: ObservableObject {
         isRepeating == false || selectedRepeatType != .customDays || selectedRepeatWeekdays.isEmpty == false
     }
 
-    private func applyRepeatSettings(to task: TaskItem, startDate: Date? = nil) {
+    private func applyRepeatSettings(
+        to task: TaskItem,
+        startDate: Date? = nil,
+        resetScheduleAnchor: Bool = false
+    ) {
         let effectiveRepeatType: TaskRepeatType = isRepeating ? selectedRepeatType : .none
         let effectiveWeekdays = effectiveRepeatType == .customDays
             ? Array(selectedRepeatWeekdays)
@@ -129,11 +165,27 @@ final class CreateTaskViewModel: ObservableObject {
         task.repeatWeekdays = effectiveWeekdays
 
         if isRepeating {
-            task.repeatStartDate = task.repeatStartDate ?? startDate ?? task.date
+            let calendar = Calendar.current
+            let anchorDate = calendar.startOfDay(for: startDate ?? task.date)
+            if resetScheduleAnchor || task.repeatStartDate == nil {
+                task.repeatStartDate = anchorDate
+            }
             task.repeatSeriesId = task.repeatSeriesId ?? task.id
+            if resetScheduleAnchor || task.scheduledDate == nil {
+                task.scheduledDate = anchorDate
+            }
+            if effectiveRepeatType == .weekly {
+                if resetScheduleAnchor || task.repeatAnchorWeekday == nil {
+                    task.repeatAnchorWeekday = RepeatWeekday.from(
+                        date: anchorDate,
+                        calendar: calendar
+                    )
+                }
+            } else {
+                task.repeatAnchorWeekday = nil
+            }
         } else {
-            task.repeatStartDate = nil
-            task.repeatSeriesId = nil
+            task.clearRecurrenceMetadata()
         }
     }
 

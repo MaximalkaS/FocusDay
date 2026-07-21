@@ -38,6 +38,12 @@ enum WidgetSnapshotService {
         calendar: Calendar = .current,
         referenceDate: Date = Date()
     ) throws -> FocusDayWidgetSnapshot {
+        try DayTransitionService.prepareForCurrentDay(
+            modelContext: modelContext,
+            calendar: calendar,
+            referenceDate: referenceDate
+        )
+
         let tasks = try modelContext.fetch(
             FetchDescriptor<TaskItem>(
                 sortBy: [SortDescriptor(\TaskItem.date, order: .reverse)]

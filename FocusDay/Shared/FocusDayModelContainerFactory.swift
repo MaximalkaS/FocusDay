@@ -4,6 +4,7 @@ import SwiftData
 enum FocusDayModelContainerFactory {
     static let schema = Schema([
         TaskItem.self,
+        RecurringTaskSeries.self,
         DailyState.self,
         DailySummary.self
     ])

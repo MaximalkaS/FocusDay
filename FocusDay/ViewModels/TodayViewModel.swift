@@ -153,10 +153,15 @@ final class TodayViewModel: ObservableObject {
             clearMainTaskSelection()
         }
 
-        modelContext.delete(task)
-
         do {
+            try RecurringTaskService.recordDeletedOccurrence(
+                for: task,
+                modelContext: modelContext,
+                calendar: calendar
+            )
+            modelContext.delete(task)
             try modelContext.save()
+            WidgetSnapshotService.refresh(modelContext: modelContext, calendar: calendar)
             loadToday()
             return true
         } catch {
@@ -175,7 +180,7 @@ final class TodayViewModel: ObservableObject {
         task.isCompleted = isNowCompleted
         task.completedAt = isNowCompleted ? Date() : nil
 
-        let didSave = saveContext()
+        let didSave = saveContext(processRecurringTasks: isNowCompleted && task.isRepeating)
         loadToday()
 
         guard didSave, task.isCompleted, let streakCelebration else {
@@ -354,11 +359,18 @@ final class TodayViewModel: ObservableObject {
     }
 
     @discardableResult
-    private func saveContext() -> Bool {
+    private func saveContext(processRecurringTasks: Bool = false) -> Bool {
         guard let modelContext else { return false }
 
         do {
             try modelContext.save()
+            if processRecurringTasks {
+                try RecurringTaskService.process(
+                    modelContext: modelContext,
+                    calendar: calendar,
+                    referenceDate: Date()
+                )
+            }
             WidgetSnapshotService.refresh(modelContext: modelContext, calendar: calendar)
             return true
         } catch {
